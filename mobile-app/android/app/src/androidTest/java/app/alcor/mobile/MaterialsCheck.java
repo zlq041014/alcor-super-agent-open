@@ -25,6 +25,7 @@ public final class MaterialsCheck extends Instrumentation {
         int code = Activity.RESULT_CANCELED;
         try {
             result.putString("notesMigration", NotesMigrationCheck.run(getTargetContext()));
+            result.putString("notesCapture", NotesCaptureCheck.run(getTargetContext()));
             result.putString("chatImport", ChatImportCheck.run(getTargetContext()));
             result.putString("backup", BackupCheck.run(getTargetContext()));
             if (workNotices) result.putString("workNotices", WorkNoticesCheck.run(getTargetContext()));

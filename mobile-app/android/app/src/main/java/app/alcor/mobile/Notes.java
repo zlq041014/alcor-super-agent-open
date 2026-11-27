@@ -20,6 +20,7 @@ final class Notes {
     private final Database db;
     private final Context context;
     private final DiscussionFiles files;
+    private volatile boolean imagesRecovered;
 
     Notes(Context context, Database db, DiscussionFiles files) {
         this.context = context.getApplicationContext();
@@ -47,13 +48,32 @@ final class Notes {
         return value;
     }
 
-    void add(Mode mode, String id, String text, Uri image, String source) throws Exception {
+    // A process can die before either the manifest or the note row is present.
+    private synchronized void recoverImages() {
+        if (imagesRecovered) return;
+        try {
+            for (String id : files.pendingNoteImages()) {
+                try (var row = db.getReadableDatabase().query("notes", new String[]{"id"}, "id = ?", new String[]{id}, null, null, null)) {
+                    if (!row.moveToFirst()) files.discardUncommittedNoteImage(id, owner(id));
+                }
+                files.finishNoteImage(id);
+            }
+            imagesRecovered = true;
+        } catch (Exception failure) {
+            throw new IllegalStateException("无法清理上次未保存的图片，请检查手机存储后重试", failure);
+        }
+    }
+
+    // A recreated capture can retry the same id while the previous Activity is still saving.
+    synchronized void add(Mode mode, String id, String text, Uri image, String source) throws Exception {
         validate(text, image != null);
         source(source);
+        recoverImages();
         var db = this.db.getWritableDatabase();
         try (var found = db.query("notes", new String[]{"mode"}, "id = ?", new String[]{id}, null, null, null)) {
             if (found.moveToFirst()) {
                 if (!mode.key.equals(found.getString(0))) throw new IllegalStateException("这条笔记已在另一模式保存");
+                files.finishNoteImage(id);
                 return; // The capture may be recreated after the commit.
             }
         }
@@ -63,16 +83,35 @@ final class Notes {
         values.put("body", text);
         values.put("source", source);
         values.put("box", INBOX);
+        String owner = owner(id);
         if (image != null) {
             String mime = "content".equals(image.getScheme()) ? context.getContentResolver().getType(image) : null;
             if (mime == null || !mime.startsWith("image/")) throw new IllegalArgumentException("没有收到可读取的图片");
-            var saved = files.importUris(context, id, owner(id), List.of(image));
-            values.put("image", saved.getJSONArray("files").getJSONObject(0).getString("ref"));
         }
-        long now = System.currentTimeMillis();
-        values.put("created", now);
-        values.put("modified", now);
-        db.insertOrThrow("notes", null, values);
+        // Without a note row, a completed copy belongs to an interrupted save, even when the user removed the image.
+        files.discardUncommittedNoteImage(id, owner);
+        files.finishNoteImage(id);
+        if (image != null) files.beginNoteImage(id);
+        try {
+            if (image != null) {
+                var saved = files.importUris(context, id, owner, List.of(image));
+                values.put("image", saved.getJSONArray("files").getJSONObject(0).getString("ref"));
+            }
+            long now = System.currentTimeMillis();
+            values.put("created", now);
+            values.put("modified", now);
+            db.insertOrThrow("notes", null, values);
+        }
+        catch (Exception failure) {
+            if (image != null) {
+                try {
+                    files.discardUncommittedNoteImage(id, owner);
+                    files.finishNoteImage(id);
+                } catch (Exception cleanup) { failure.addSuppressed(cleanup); }
+            }
+            throw failure;
+        }
+        if (image != null) files.finishNoteImage(id);
     }
 
     void addText(Mode mode, String id, String text, String source) throws Exception {
@@ -97,6 +136,7 @@ final class Notes {
     }
 
     JSONObject get(Mode mode, String id) throws JSONException {
+        if (!imagesRecovered) recoverImages();
         try (var cursor = this.db.getReadableDatabase().query("notes", FIELDS, "id = ? AND mode = ?", new String[]{DiscussionFiles.id(id), mode.key},
                 null, null, null)) {
             if (!cursor.moveToFirst()) throw new IllegalArgumentException("这条笔记已不存在");
@@ -105,6 +145,7 @@ final class Notes {
     }
 
     JSONObject list(Mode mode, String query, int offset, String box) throws JSONException {
+        if (!imagesRecovered) recoverImages();
         if (offset < 0 || offset % 30 != 0 || query.length() > 200) throw new IllegalArgumentException("笔记检索条件无效");
         String state = box.isEmpty() ? "" : box(box);
         JSONArray notes = new JSONArray();

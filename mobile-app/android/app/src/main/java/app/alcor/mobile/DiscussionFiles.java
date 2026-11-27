@@ -23,7 +23,11 @@ import org.json.JSONObject;
 
 final class DiscussionFiles {
     private final File root;
-    DiscussionFiles(Context ctx) { root = new File(ctx.getFilesDir(), "wechat-files"); }
+    private final File pendingNotes;
+    DiscussionFiles(Context ctx) {
+        root = new File(ctx.getFilesDir(), "wechat-files");
+        pendingNotes = new File(ctx.getFilesDir(), "note-image-pending");
+    }
     static String id(String value) {
         if (!value.matches("[A-Za-z0-9_-]{32}")) throw new IllegalArgumentException("导入编号无效");
         return value;
@@ -105,6 +109,35 @@ final class DiscussionFiles {
             return saved;
         } catch (Exception e) { discard(batch); throw e; }
     }
+    void discardUncommittedNoteImage(String id, String owner) throws Exception {
+        File previous = directory(id);
+        if (new File(previous, "manifest").isFile()) {
+            if (!owner.equals(manifest(previous).getString("dialog")))
+                throw new IllegalStateException("这份图片编号已被其他材料使用");
+            discard(id);
+        } else if (noteMarker(id).isFile()) discard(id);
+    }
+
+    private File noteMarker(String batch) { return new File(pendingNotes, id(batch)); }
+
+    void beginNoteImage(String batch) throws java.io.IOException {
+        Files.createDirectories(pendingNotes.toPath());
+        Files.createFile(noteMarker(batch).toPath());
+    }
+
+    void finishNoteImage(String batch) throws java.io.IOException {
+        Files.deleteIfExists(noteMarker(batch).toPath());
+    }
+
+    java.util.List<String> pendingNoteImages() throws java.io.IOException {
+        if (!pendingNotes.exists()) return java.util.List.of();
+        var ids = new java.util.ArrayList<String>();
+        try (var entries = Files.newDirectoryStream(pendingNotes.toPath())) {
+            for (var path : entries) ids.add(id(path.getFileName().toString()));
+        }
+        return ids;
+    }
+
     void discard(String batch) throws Exception {
         File dir = directory(batch);
         if (dir.exists()) {
