@@ -8,6 +8,7 @@ public final class AlcorApp extends Application {
     @Override public void onCreate() {
         super.onCreate();
         container = new AppContainer(this);
+        LocalBackup.schedulePreviewRecovery(getCacheDir(), container.io());
     }
 
     AppContainer container() {

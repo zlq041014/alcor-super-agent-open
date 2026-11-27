@@ -44,6 +44,7 @@ final class BackupCheck {
         String fromName = "backup-source-" + key, toName = "backup-target-" + key;
         File root = Files.createTempDirectory(context.getCacheDir().toPath(), "backup-check-").toFile();
         try (var from = new Database(context, fromName); var to = new Database(context, toName)) {
+            checkAbandonedPreviews(root);
             Context source = filesIn(context, new File(root, "source")), target = filesIn(context, new File(root, "target"));
             var sourceFiles = new DiscussionFiles(source); var targetFiles = new DiscussionFiles(target);
             var sourceChat = chats(from, source); var targetChat = chats(to, target);
@@ -132,5 +133,20 @@ final class BackupCheck {
                 for (Path entry : (Iterable<Path>) entries.sorted(Comparator.reverseOrder())::iterator) Files.delete(entry);
             }
         }
+    }
+
+    private static void checkAbandonedPreviews(File root) throws Exception {
+        var old = Files.createTempDirectory(root.toPath(), "alcor-restore-");
+        var unrelated = Files.createTempDirectory(root.toPath(), "other-temp-");
+        Files.write(old.resolve("f0"), new byte[]{1, 2, 3});
+        Files.write(unrelated.resolve("keep"), new byte[]{4});
+        var scheduled = new java.util.ArrayList<Runnable>();
+        LocalBackup.schedulePreviewRecovery(root, scheduled::add);
+        require(scheduled.size() == 1, "遗留备份清理没有调度");
+        var active = Files.createTempDirectory(root.toPath(), "alcor-restore-");
+        Files.write(active.resolve("f0"), new byte[]{5});
+        scheduled.get(0).run();
+        require(!Files.exists(old) && Files.exists(active.resolve("f0")) && Files.exists(unrelated.resolve("keep")),
+            "误删了本进程预览或其他缓存，或者未清理已遗留的预览");
     }
 }

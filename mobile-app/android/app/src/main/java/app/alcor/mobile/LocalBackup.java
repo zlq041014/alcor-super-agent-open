@@ -13,6 +13,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -33,6 +36,7 @@ final class LocalBackup {
     private static final int DOCUMENT = 12 * 1024 * 1024, ITEM = 20 * 1024 * 1024, MEDIA = 192 * 1024 * 1024;
     private static final int MAX_MEDIA = 512;
     private static final String META = "alcor-backup.json";
+    private static final String PREVIEW_PREFIX = "alcor-restore-";
     private static final String[] NOTES = {"id","mode","body","image","project","source","box","created","modified"};
     private static final String[] MEMORIES = {"id","mode","project","body","kind","source","source_ref","created","used","enabled","revised","deleted"};
     private static final String[] REMINDERS = {"id","mode","body","due","origin","origin_ref","version","state"};
@@ -43,6 +47,26 @@ final class LocalBackup {
 
     LocalBackup(Context context, Database database, ChatStore chat, DiscussionFiles files) {
         this.context = context; this.database = database; this.chat = chat; this.files = files;
+    }
+
+    static void schedulePreviewRecovery(File cache, Executor io) {
+        // Take the list at startup; a preview created by this process must never be on it.
+        File[] abandoned = cache.listFiles((dir, name) -> name.startsWith(PREVIEW_PREFIX));
+        if (abandoned == null) {
+            android.util.Log.w("AlcorBackup", "无法查看上次的备份预览");
+            return;
+        }
+        if (abandoned.length == 0) return;
+        io.execute(() -> {
+            for (File folder : abandoned) {
+                if (!Files.isDirectory(folder.toPath(), LinkOption.NOFOLLOW_LINKS)) continue;
+                try { clear(folder); }
+                catch (NoSuchFileException evicted) { /* The system may have evicted an old cache folder. */ }
+                catch (java.io.IOException e) {
+                    android.util.Log.w("AlcorBackup", "未能清理上次的备份预览：" + e.getClass().getSimpleName());
+                }
+            }
+        });
     }
 
     static final class Preview implements AutoCloseable {
@@ -205,7 +229,7 @@ final class LocalBackup {
     }
 
     Preview prepare(Uri uri) throws Exception {
-        File folder = Files.createTempDirectory(context.getCacheDir().toPath(), "alcor-restore-").toFile();
+        File folder = Files.createTempDirectory(context.getCacheDir().toPath(), PREVIEW_PREFIX).toFile();
         try (var input = context.getContentResolver().openInputStream(uri)) {
             if (input == null) throw bad();
             return read(folder, input);
