@@ -1,0 +1,31 @@
+{
+  "id": "merge-local-view-options",
+  "title": "修复界面选项递归覆盖",
+  "category": "bugfix",
+  "prompt": "合并默认设置与界面覆盖值。普通对象逐层合并；数组和 null 整个替换；覆盖中的 undefined 等同没写。不能修改或共享输入中的对象、数组。保留对象里未覆盖的字段。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

@@ -1,0 +1,31 @@
+{
+  "id": "document-stop-confirmation",
+  "title": "区分停止请求、确认、已完成和未知",
+  "category": "docs",
+  "prompt": "README 的停止说明要以 stopSummary 为准：解释 requested、stopped、finished、unknown 的区别，以及哪些情况 hold 为 true。保留 JSON 示例，分别用未收到回执的停止请求和回执为 interrupted 的停止请求展示返回值。只改 README。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

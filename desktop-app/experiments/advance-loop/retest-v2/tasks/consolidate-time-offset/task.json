@@ -1,0 +1,31 @@
+{
+  "id": "consolidate-time-offset",
+  "category": "refactor",
+  "title": "共用时区标签生成",
+  "prompt": "日历按钮和详情页各自转换时区偏移。把它们改用同一个函数；保持 UTC±hh:mm 的现有格式，包括负数和零。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

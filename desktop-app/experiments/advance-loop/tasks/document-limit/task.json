@@ -1,0 +1,31 @@
+{
+  "id": "document-limit",
+  "title": "纠正文档里的页大小",
+  "category": "docs",
+  "prompt": "文档还写着列表默认显示 20 条，实际默认是 10 条。请把说明和示例同步到当前行为，程序默认不要改。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

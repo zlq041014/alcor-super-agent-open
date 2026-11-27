@@ -1,0 +1,31 @@
+{
+  "id": "prune-task-prerequisites",
+  "title": "按依赖挑选本批可运行工作",
+  "category": "feature",
+  "prompt": "从等待列表挑选最多 limit 项工作。依赖必须都在 done 中（本批不算）；每个 project 最多取一项，busy 已占用的项目整批跳过。先按优先级从大到小，同级保留原队列顺序，缺省 priority 为 0。返回 selected 和仍在队列中的 waiting（保持原顺序的 ID）。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

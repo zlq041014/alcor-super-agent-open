@@ -1,0 +1,151 @@
+window.ALCOR_PET = {
+  "name": "小引",
+  "frameWidth": 64,
+  "frameHeight": 64,
+  "image": "alcor-pet.png",
+  "displayScale": [
+    2,
+    3
+  ],
+  "anchor": {
+    "x": 32,
+    "y": 52
+  },
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 16,
+      "fps": 8,
+      "loop": true,
+      "next": null,
+      "label": "待命",
+      "trigger": "没有需要关注的工作；伴星绕身巡航"
+    },
+    "listen": {
+      "row": 1,
+      "frames": 8,
+      "fps": 8,
+      "loop": true,
+      "next": null,
+      "label": "聆听",
+      "trigger": "用户正在总管输入框输入或说话"
+    },
+    "think": {
+      "row": 2,
+      "frames": 12,
+      "fps": 10,
+      "loop": true,
+      "next": null,
+      "label": "思考",
+      "trigger": "总管模型请求已发出，尚未收到输出"
+    },
+    "talk": {
+      "row": 3,
+      "frames": 8,
+      "fps": 10,
+      "loop": true,
+      "next": null,
+      "label": "回答",
+      "trigger": "总管回复正在流式输出"
+    },
+    "queued": {
+      "row": 4,
+      "frames": 8,
+      "fps": 8,
+      "loop": true,
+      "next": null,
+      "label": "已记下",
+      "trigger": "交接卡已授权，执行端尚无「已收到」回执；伴星抱着任务卡守在旁边"
+    },
+    "handoff": {
+      "row": 5,
+      "frames": 12,
+      "fps": 12,
+      "loop": false,
+      "next": "received",
+      "label": "送出",
+      "trigger": "执行端「已收到」回执到达时播放一次：伴星带卡飞向电脑"
+    },
+    "received": {
+      "row": 6,
+      "frames": 8,
+      "fps": 6,
+      "loop": true,
+      "next": null,
+      "label": "电脑已收到",
+      "trigger": "Hub 已登记、仍在排队；没有开始证据，不显示执行中"
+    },
+    "working": {
+      "row": 7,
+      "frames": 8,
+      "fps": 8,
+      "loop": true,
+      "next": null,
+      "label": "执行中",
+      "trigger": "原执行端确认对应回合已开始"
+    },
+    "unknown": {
+      "row": 8,
+      "frames": 8,
+      "fps": 6,
+      "loop": true,
+      "next": null,
+      "label": "送达待核对",
+      "trigger": "可能已送出但缺少匹配回执；只核对、不重发"
+    },
+    "review": {
+      "row": 9,
+      "frames": 8,
+      "fps": 6,
+      "loop": true,
+      "next": null,
+      "label": "待验收",
+      "trigger": "回合结束且有结果，等待约定检查或用户核对"
+    },
+    "done": {
+      "row": 10,
+      "frames": 12,
+      "fps": 10,
+      "loop": false,
+      "next": "idle",
+      "label": "完成",
+      "trigger": "通过约定检查或用户核对后播放一次：伴星带回结果"
+    },
+    "failed": {
+      "row": 11,
+      "frames": 8,
+      "fps": 5,
+      "loop": true,
+      "next": null,
+      "label": "失败",
+      "trigger": "原执行端失败回执或核对未通过"
+    },
+    "sleep": {
+      "row": 12,
+      "frames": 12,
+      "fps": 4,
+      "loop": true,
+      "next": null,
+      "label": "休眠",
+      "trigger": "无进行中工作且用户长时间未操作"
+    },
+    "drag": {
+      "row": 13,
+      "frames": 6,
+      "fps": 10,
+      "loop": true,
+      "next": null,
+      "label": "拖动",
+      "trigger": "用户正在拖动桌宠；松开回到原状态"
+    },
+    "poke": {
+      "row": 14,
+      "frames": 8,
+      "fps": 12,
+      "loop": false,
+      "next": null,
+      "label": "戳一下",
+      "trigger": "单击桌宠；播完回到原状态"
+    }
+  }
+};

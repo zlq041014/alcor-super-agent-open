@@ -1,0 +1,31 @@
+{
+  "id": "bucket-reminder-digest",
+  "title": "按频道汇总未读提醒",
+  "category": "feature",
+  "prompt": "提醒摘要需要一个 onlyUnread 选项，为 true 时只统计 unread 为 true 的记录，默认统计全部。分组用 channel，缺失归到 general。返回每组的 channel、count、newest（最大的数值 at），按 newest 降序、同值按频道名升序排列。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

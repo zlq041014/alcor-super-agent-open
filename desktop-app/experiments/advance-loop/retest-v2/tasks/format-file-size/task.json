@@ -1,0 +1,31 @@
+{
+  "id": "format-file-size",
+  "category": "feature",
+  "title": "增加二进制文件大小单位",
+  "prompt": "文件大小现在只显示字节，想按 B、KiB、MiB、GiB 自动换单位。指定 decimals 时保留该位数；B 用整数，无需加小数，零显示为 0 B。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

@@ -1,0 +1,31 @@
+{
+  "id": "mixed-duration",
+  "title": "支持组合时长",
+  "category": "feature",
+  "prompt": "时长输入除了整数分钟，还想填 1h30m 或 2m 15s。返回秒数；遇到无效片段要返回 null，不要只解析前半段。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

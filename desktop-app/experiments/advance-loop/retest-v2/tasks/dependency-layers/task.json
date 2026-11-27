@@ -1,0 +1,31 @@
+{
+  "id": "dependency-layers",
+  "category": "feature",
+  "title": "按依赖分批安排工作",
+  "prompt": "给工作项按依赖排批，同一批里保持输入顺序。依赖全部在之前批次完成才能入本批；环和依赖不存在的工作放到 blocked 并保持输入顺序。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

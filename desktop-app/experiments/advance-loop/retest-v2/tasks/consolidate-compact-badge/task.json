@@ -1,0 +1,31 @@
+{
+  "id": "consolidate-compact-badge",
+  "category": "refactor",
+  "title": "共用计数徽标规则",
+  "prompt": "日历和详情各自格式化计数徽标。抽到同一个函数；零和负数不显示，1 到 99 原样显示，100 以上和 100 都显示 99+。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

@@ -1,0 +1,31 @@
+{
+  "id": "expire-memory-cache",
+  "category": "feature",
+  "title": "给缓存增加到期统计",
+  "prompt": "缓存读取得支持传入 now：expiresAt 小于或等于 now 的记录视为已过期，不返回。没有 expiresAt 的保持有效。结果里同时返回有效记录和过期个数，保持有效记录顺序。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

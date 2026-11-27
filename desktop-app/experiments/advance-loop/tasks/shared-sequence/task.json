@@ -1,0 +1,31 @@
+{
+  "id": "shared-sequence",
+  "title": "复用工作编号生成器",
+  "category": "refactor",
+  "prompt": "短编号和长编号都在各自实现左侧补零。请提取同一个公共生成器，让两种编号继续输出原来的格式。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

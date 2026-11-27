@@ -1,0 +1,31 @@
+{
+  "id": "route-whole-segments",
+  "title": "按路径段选最具体的帮助入口",
+  "category": "bugfix",
+  "prompt": "帮助索引会把 /reports-old 错认成 /reports。匹配整段路径或其子段，选最长前缀；先忽略请求的查询串和片段，配置与请求的尾斜杠不影响匹配。同长度取配置中的第一项，根前缀能兜底，找不到返回 null。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

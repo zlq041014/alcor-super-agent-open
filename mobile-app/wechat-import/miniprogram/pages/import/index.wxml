@@ -1,0 +1,9 @@
+<view class="page">
+  <view class="title">{{done ? '已上传，回星引继续' : '从微信选文件'}}</view>
+  <view class="hint">{{done ? '文件会回到发起导入的讨论。' : '在微信选择器里点「文件传输助手」或其他聊天。每次最多 3 份，每份不超过 4 MiB。'}}</view>
+  <button wx:if="{{enabled && !attempted}}" bindtap="pick">{{files.length ? '重新选择' : '选择聊天文件'}}</button>
+  <view wx:for="{{files}}" wx:key="path" class="file">{{item.name}} · {{item.size}} 字节</view>
+  <button wx:if="{{files.length && !done}}" type="primary" loading="{{busy}}" disabled="{{busy}}" bindtap="upload">上传到本次星引讨论</button>
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+  <button wx:if="{{done}}" open-type="launchApp" binderror="returnError">回到星引</button>
+</view>

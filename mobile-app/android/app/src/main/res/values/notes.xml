@@ -1,0 +1,9 @@
+<resources>
+    <string name="note_title">记一笔</string>
+    <string name="note_share">星引 · 记一笔</string>
+    <string name="note_hint">想到什么就记下来</string>
+    <string name="note_select_picture">选择一张图片</string>
+    <string name="note_replace_picture">已选图片 · 更换</string>
+    <string name="note_clear_picture">移除这张图片</string>
+    <string name="note_save">保存笔记</string>
+</resources>

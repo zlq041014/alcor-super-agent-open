@@ -1,0 +1,42 @@
+# 公开版范围与验证状态
+
+首发选择 Windows 0.2.1 和 Android 0.1.0 源码快照。核心是能够构建、运行并用隔离数据完成日常入口流程。需要实际账号、原生执行端、真机或共享项目才能完整检验的能力单列。
+
+<a id="desktop-020-release"></a>
+<a id="first-release"></a>
+<a id="local-projects"></a>
+<a id="d2-real-owner"></a>
+
+## Windows 0.2.1
+
+- 核心流程：首次启动，添加本机测试项目，保存规则与对话草稿，重启后读取。验证不需要模型账户。
+- 首发复验：Windows 构建、类型检查、43 项核心回归通过；Electron 实际启动并确认项目、规则和草稿可在重启后找回。
+- DeepSeek、Codex 与 DSH 可自行配置。原生会话接力受登录、工具版本和原会话可用性影响，本次公开快照不重新验证真实账户。
+- 桌面全量回归 210 项中 186 项通过、24 项失败，失败涉及自动推进循环、隔离执行、成果合入及相关恢复与用量记录。这些能力按预览处理，建议先在可恢复的测试项目中试用。
+- [构建、使用和限制](../desktop-app/README.md)
+
+<a id="mobile-manager-v1"></a>
+<a id="mobile-assistant-v2"></a>
+
+## Android 0.1.0 预览
+
+- 从源码生成 Debug APK。包含本机笔记、对话、提醒和同网配对入口。预览中部分流程依赖设备权限，配对需有可访问的桌面端。
+- 首发复验：Debug APK 构建、17 项 JVM 单测和模拟桥接的生产界面检查通过。未在本次快照上重做真机联调。
+- 设计图与网页原型用于对齐界面，不能作为真机或跨网络验收。跨网接力、全部文件来源及真实账户的长时间使用不列入首发承诺。
+- [构建、配置和验证](../mobile-app/README.md)
+
+<a id="implementation-evidence"></a>
+<a id="loop-l0-local"></a>
+<a id="loop-l1-start"></a>
+<a id="loop-l1-followup-final"></a>
+<a id="loop-l2-local"></a>
+<a id="loop-l2-live"></a>
+<a id="loop-l3-replay"></a>
+<a id="loop-l4-live"></a>
+<a id="native-loop-p0"></a>
+<a id="native-loop-p4"></a>
+<a id="standard-first"></a>
+
+## 设计与历史
+
+[文档地图](README.md)保留架构和设计入口。推进循环等历史实验不作为本次首发的核心能力或验收证据。

@@ -1,0 +1,60 @@
+{
+  "model": "gpt-image-2.5-sunburst",
+  "style": "Soft glossy 3D icon in a clean modern product style, rounded friendly shapes, main color violet #6657D9 with lavender #EFECFF highlights and a small warm amber #F5A524 accent, gentle studio lighting, subtle soft inner shadow, crisp edges, single centered object with generous empty padding around it, on a transparent background, real PNG alpha channel, no backdrop, no ground shadow, no text, no letters, no numbers, no logos.",
+  "items": [
+    {
+      "name": "app-icon-a",
+      "full": true,
+      "prompt": "Android app icon for a personal AI manager app named Alcor. Full-bleed square artwork, no rounded corners, no border (the launcher mask is applied later). Background: smooth deep violet to indigo gradient (#6657D9 to #3B2FA8) with a faint radial glow. Foreground centered: one large luminous white four-point guiding star, and close beside it a much smaller warm amber companion star, joined by a thin elegant arc of light that suggests a connection between two devices. Minimal, premium, flat-meets-soft-3D, very readable at small size. No text, no letters."
+    },
+    {
+      "name": "app-icon-b",
+      "full": true,
+      "prompt": "Android app icon for a personal AI manager app named Alcor. Full-bleed square artwork, no rounded corners, no border. Background: bright lavender to violet diagonal gradient (#8B7CF0 to #5847D0). Foreground centered: a rounded white chat bubble whose tail curves into a small orbit path, with a bright four-point star sitting inside the bubble and a tiny amber companion star travelling on the orbit. Clean, friendly, soft 3D, strong silhouette readable at 48 pixels. No text, no letters."
+    },
+    {
+      "name": "manager-avatar",
+      "prompt": "Avatar emblem for an AI manager assistant: a smooth glowing violet sphere with a bright white four-point star in the center and a tiny amber companion star orbiting at the upper right, calm and trustworthy."
+    },
+    {
+      "name": "exec-codex",
+      "prompt": "Icon representing a coding agent running on a desktop computer: a rounded square terminal window tile in deep slate blue with a bright code prompt symbol made of a chevron and an underscore cursor, small violet glow. Purely geometric, no letters."
+    },
+    {
+      "name": "exec-dsh",
+      "prompt": "Icon representing a desktop agent host: a rounded hexagon node in teal green #0E9F6E with three small connected dots forming a tiny network inside it, soft glossy finish. Purely geometric, no letters."
+    },
+    {
+      "name": "phone-assistant",
+      "prompt": "Icon representing an always-available assistant on a phone: a rounded smartphone in violet with a small sparkle star glowing on its screen and a tiny signal wave above it."
+    },
+    {
+      "name": "handoff",
+      "prompt": "Icon representing handing a task from a phone to a laptop: a small violet smartphone on the left and an open laptop on the right, a curved glowing amber arrow carrying a tiny folded paper card from the phone to the laptop."
+    },
+    {
+      "name": "decision",
+      "prompt": "Icon representing a recorded decision: a violet bookmark ribbon with a white check mark, and a small amber pin at the top."
+    },
+    {
+      "name": "receipt",
+      "prompt": "Icon representing a verified delivery receipt: a white paper slip with a torn bottom edge, overlapped by a round violet seal stamp with a white check mark."
+    },
+    {
+      "name": "search-source",
+      "prompt": "Icon representing web search with cited sources: a violet globe with a small white magnifying glass in front and a tiny amber link chain."
+    },
+    {
+      "name": "computer-asleep",
+      "prompt": "Small friendly illustration of a closed laptop resting, with a soft lavender crescent moon and two tiny stars above it, indicating the computer is offline and the task is waiting. Calm mood."
+    },
+    {
+      "name": "offline-phone",
+      "prompt": "Small friendly illustration of a smartphone with a crossed-out signal wave above it and a neat stack of saved draft cards beside it with a small amber check, indicating no network but drafts are kept safely."
+    },
+    {
+      "name": "find-sessions",
+      "prompt": "Small friendly illustration of three stacked rounded conversation cards in different soft colors (violet, slate, teal) with a small magnifying glass hovering over them."
+    }
+  ]
+}

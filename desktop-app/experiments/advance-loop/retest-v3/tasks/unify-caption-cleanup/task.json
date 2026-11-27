@@ -1,0 +1,31 @@
+{
+  "id": "unify-caption-cleanup",
+  "title": "共用显示标题清理",
+  "category": "refactor",
+  "prompt": "侧栏、详情、历史分别清理显示标题，保持既有行为但共用一个函数。去掉首尾空白，中间多个空白压成单个普通空格；空白或 null 时显示“未命名”。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

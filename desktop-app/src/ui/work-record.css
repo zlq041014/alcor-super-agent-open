@@ -1,0 +1,143 @@
+.work-record {
+  margin: 8px 0 12px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.work-record summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  line-height: 1.5;
+  color: inherit;
+  list-style: none;
+  outline-offset: 2px;
+}
+.work-record summary::-webkit-details-marker {
+  display: none;
+}
+.work-record summary:focus-visible {
+  outline: 2px solid var(--accent);
+  border-radius: 3px;
+}
+.work-record .work-heading {
+  padding: 5px 0;
+}
+.work-heading strong {
+  color: var(--text);
+  font-weight: 550;
+  white-space: nowrap;
+}
+.work-glance {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  min-width: 0;
+}
+.work-record .work-chevron {
+  flex-shrink: 0;
+  transform: rotate(0);
+  transition: transform 0.13s;
+}
+.work-record[open] > .work-heading > .work-chevron,
+.work-item[open] > summary > .work-chevron,
+.work-file[open] > summary > .work-chevron {
+  transform: rotate(90deg);
+}
+.work-tree {
+  margin: 4px 0 8px 7px;
+  border-left: 1px solid var(--line);
+  padding: 2px 0 1px 16px;
+}
+.work-record .work-item,
+.work-record .work-file {
+  margin: 1px 0;
+}
+.work-item > summary,
+.work-file > summary {
+  padding: 4px 2px;
+}
+.work-item > summary > span,
+.work-file > summary > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.work-file b {
+  font-weight: 550;
+  color: var(--text);
+}
+.work-record .added,
+.work-record .plus {
+  color: #248565;
+}
+.work-record .removed,
+.work-record .minus,
+.work-record .work-fail,
+.work-item.state-failed > summary {
+  color: #b45151;
+}
+.work-record .work-info {
+  margin: 1px 0 6px 25px;
+  color: var(--text);
+  font-size: 12px;
+}
+.work-info small {
+  color: var(--muted);
+}
+.work-info p {
+  margin: 2px 0;
+}
+.work-record pre {
+  padding: 9px 11px;
+  margin: 5px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+  max-height: 280px;
+  overflow: auto;
+  font:
+    12px/1.55 Consolas,
+    "Microsoft YaHei",
+    monospace;
+}
+.work-record .work-patch {
+  margin-left: 24px;
+}
+.work-record .kind-summary .work-info pre,
+.work-record .kind-finding .work-info pre {
+  font-family: inherit;
+  background: transparent;
+  padding: 4px 0;
+}
+.agent-stream > .work-record,
+.agent-stream > .work-section {
+  max-width: 840px;
+  margin: 9px auto 17px;
+}
+.work-section > .work-record {
+  margin: 0;
+}
+.messages > .chief-work {
+  margin: -6px 0 14px;
+  padding-left: 47px;
+}
+.work-record .work-command {
+  color: var(--text);
+}
+.work-record .spin-work {
+  color: var(--accent);
+}
+.work-record summary:hover {
+  color: var(--text);
+}
+:root[data-theme="dark"] .work-record .added,
+:root[data-theme="dark"] .work-record .plus {
+  color: #76c69e;
+}
+:root[data-theme="dark"] .work-record .removed,
+:root[data-theme="dark"] .work-record .minus {
+  color: #ec9997;
+}

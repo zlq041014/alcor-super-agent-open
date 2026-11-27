@@ -1,0 +1,31 @@
+{
+  "id": "parse-settings-sections",
+  "title": "修复带引号的配置值",
+  "category": "bugfix",
+  "prompt": "配置每行是 key=value，支持 [section] 分组和 # 行尾注释。双引号内保留 # 和前后空格，支持反斜杠转义双引号或反斜杠。字符串外去两端空格；同节重复键取最后一个。没有 section 的项归到空字符串节；引号不闭合的那一行跳过。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

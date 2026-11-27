@@ -1,0 +1,31 @@
+{
+  "id": "document-work-journal-export",
+  "title": "对齐工作日志导出文档",
+  "category": "docs",
+  "prompt": "日志说明仍是旧字段。只改文档，按当前代码说明 schema 2、records 数组、每条记录只含 id 和 stage。更新 README 里 JSON 代码块的导出示例，使示例匹配代码对输入 a/ready 与 b/done 的实际输出。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

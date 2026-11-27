@@ -1,0 +1,31 @@
+{
+  "id": "text-preview",
+  "title": "按字符缩略预览",
+  "category": "feature",
+  "prompt": "预览文本超过 limit 时，在保留内容后加一个省略号，省略号占一个位置。按用户看到的字符数截取，不能把 emoji 或组合字拆开。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

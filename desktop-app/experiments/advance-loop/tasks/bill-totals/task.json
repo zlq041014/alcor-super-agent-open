@@ -1,0 +1,31 @@
+{
+  "id": "bill-totals",
+  "title": "修复折扣分币和退款",
+  "category": "bugfix",
+  "prompt": "账单的小数金额汇总时偶尔少一分钱。请逐笔按分四舍五入，负数按相同规则（半分远离零），再加总。输入金额是十进制文本。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

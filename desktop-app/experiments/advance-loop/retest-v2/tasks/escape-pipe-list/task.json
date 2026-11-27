@@ -1,0 +1,31 @@
+{
+  "id": "escape-pipe-list",
+  "category": "feature",
+  "title": "允许标签中包含分隔符",
+  "prompt": "标签仍然用竖线分隔，增加反斜杠转义：反斜杠加竖线表示字面竖线，两个反斜杠表示一个字面反斜杠。保留空标签，其他位置的反斜杠不删除。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

@@ -1,0 +1,31 @@
+{
+  "id": "dedupe-latest",
+  "category": "bugfix",
+  "title": "去重后保留最新内容",
+  "prompt": "相同 ID 的记录应保留时间戳较晚的那条；时间相同时以较后输入为准。列表顺序仍是 ID 第一次出现的顺序，零和空字符串都是有效 ID。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

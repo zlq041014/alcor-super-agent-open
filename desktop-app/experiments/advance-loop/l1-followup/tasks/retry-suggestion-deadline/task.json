@@ -1,0 +1,31 @@
+{
+  "id": "retry-suggestion-deadline",
+  "title": "让 Retry-After 等待遵守截止时间",
+  "category": "bugfix",
+  "prompt": "重试等待要同时受最大等待时间和剩余时间限制。Retry-After 只接受十进制整秒或 GMT 格式的 HTTP 日期，过去的日期等于零；无效或缺失走默认等待。now、deadline 和返回值都以毫秒计，到期不再等待。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

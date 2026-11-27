@@ -1,0 +1,31 @@
+{
+  "id": "list-cursor",
+  "title": "增加游标分页",
+  "category": "feature",
+  "prompt": "列表查询要支持 after 游标和 limit 页大小。返回当前页和下一页可以用的游标，到末页或游标找不到时返回空的下一游标。已有列表顺序别变。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

@@ -1,0 +1,31 @@
+{
+  "id": "shared-labels",
+  "title": "抽出共同的状态文案",
+  "category": "refactor",
+  "prompt": "列表和详情重复维护状态对应的文案。请放到公共模块里，让两个入口都依赖同一个定义；已有中英文输出不变。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

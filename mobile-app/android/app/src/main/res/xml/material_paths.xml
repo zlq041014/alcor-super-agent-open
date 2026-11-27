@@ -1,0 +1,4 @@
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="materials" path="wechat-files/" />
+    <cache-path name="markdown" path="markdown-export/" />
+</paths>

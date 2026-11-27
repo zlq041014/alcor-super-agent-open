@@ -1,0 +1,31 @@
+{
+  "id": "inclusive-days",
+  "title": "修复 UTC 日期区间",
+  "category": "bugfix",
+  "prompt": "日期区间按 UTC 自然日统计首尾两天。现在同一天返回零，而且跨月的结果不对，请修好；结束早于开始时返回零。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

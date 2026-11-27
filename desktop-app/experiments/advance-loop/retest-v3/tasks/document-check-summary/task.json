@@ -1,0 +1,31 @@
+{
+  "id": "document-check-summary",
+  "title": "对齐检查统计接口文档",
+  "category": "docs",
+  "prompt": "检查统计代码把 skipped 与失败分开，total 不计 skipped。请只改 README，写清这个差别，更新 JSON 示例：输入 passed、failed、skipped、passed 四次检查的实际输出。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

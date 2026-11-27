@@ -1,0 +1,51 @@
+.profile-picker {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  min-width: 0;
+}
+.profile-picker legend {
+  padding: 0 6px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.profile-picker label {
+  margin-top: 0;
+}
+.profile-picker .form-grid {
+  margin: 0;
+}
+.profile-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.profile-hint small {
+  color: var(--muted);
+}
+.launch-goal {
+  max-height: 12em;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.pending-models {
+  position: fixed;
+  right: 18px;
+  bottom: 15px;
+  z-index: 8;
+  color: var(--accent);
+  background: var(--soft);
+}
+button.model-pill {
+  border: 0;
+  cursor: pointer;
+}
+.agent-compose .composer-tools .model-pill {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}

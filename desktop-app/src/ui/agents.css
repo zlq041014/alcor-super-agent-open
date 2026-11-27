@@ -1,0 +1,378 @@
+.agent-tree h2,
+.agent-tabs,
+.agent-new-actions,
+.line-meta,
+.agent-line summary,
+.agent-headline,
+.tree-new,
+.agent-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agent-tree .panel-heading {
+  padding-bottom: 15px;
+}
+.agent-tree h2 svg,
+.agent-back,
+.line-summary summary {
+  color: var(--accent);
+}
+.tree-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+.tree-scroll {
+  padding: 5px 12px 18px;
+  overflow: auto;
+  flex: 1;
+}
+.agent-tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.agent-tree li > ul {
+  margin: 4px 0 4px 17px;
+  padding-left: 9px;
+  border-left: 1px solid var(--line);
+}
+.tree-row {
+  display: flex;
+  align-items: flex-start;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  margin: 4px 0;
+}
+.tree-row.chosen {
+  background: var(--soft);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.tree-row:hover {
+  background: var(--subtle);
+}
+.tree-toggle,
+.tree-spacer {
+  width: 20px;
+  min-width: 20px;
+  margin-top: 10px;
+}
+.tree-toggle,
+.tree-node,
+.agent-back,
+.agent-tabs button,
+.tree-new,
+.older-lines {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+.tree-toggle {
+  display: grid;
+  place-items: center;
+  padding: 2px 0;
+  color: var(--muted);
+}
+.tree-node {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 6px 10px 0;
+  text-align: left;
+}
+.agent-icon {
+  flex: 0 0 29px;
+  height: 29px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--soft);
+  color: var(--accent);
+}
+.agent-icon.executor {
+  color: #248474;
+  background: #228c8017;
+}
+.agent-icon.chief {
+  color: white;
+  background: #6a59cc;
+}
+.tree-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.tree-copy strong {
+  font-size: 12px;
+}
+.tree-copy small,
+.tree-copy em {
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.tree-copy small {
+  color: var(--muted);
+}
+.agent-state {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+}
+.agent-state:before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+.agent-state.active {
+  color: #268679;
+}
+.agent-state.attention {
+  color: #a76525;
+}
+.tree-new {
+  margin: 12px 15px 20px;
+  padding: 10px 14px;
+  background: var(--subtle);
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.tree-empty,
+.thread-intro {
+  color: var(--muted);
+  line-height: 1.65;
+  padding: 32px 15px;
+  font-size: 12px;
+}
+.tree-empty strong,
+.thread-intro h3 {
+  display: block;
+  color: var(--text);
+  margin: 10px 0 0;
+}
+.tree-empty p,
+.thread-intro p {
+  margin: 6px 0;
+}
+.tree-empty svg {
+  color: var(--accent);
+}
+.agent-workspace {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.agent-header {
+  padding: 17px clamp(16px, 3vw, 40px) 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.agent-back {
+  font-size: 11px;
+  padding: 0;
+  color: var(--accent);
+}
+.agent-headline {
+  margin: 12px 0;
+  justify-content: space-between;
+}
+.agent-headline small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.agent-headline h2 {
+  margin: 4px 0 0;
+  font-size: 19px;
+  overflow-wrap: anywhere;
+}
+.agent-tabs {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.agent-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  padding: 7px 0 10px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+}
+.agent-tabs button[aria-pressed="true"] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.agent-stream,
+.agent-details {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 16px clamp(16px, 3vw, 40px);
+}
+.agent-details .panel-heading {
+  display: none;
+}
+.agent-details .detail-title,
+.agent-details .detail-body {
+  padding: 10px 0;
+}
+.agent-details .tabs {
+  padding: 0;
+}
+.agent-line,
+.thread-intro,
+.older-lines {
+  max-width: 840px;
+  margin: 0 auto 13px;
+}
+.agent-line {
+  border-radius: 10px;
+  padding: 12px 15px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.line-user {
+  background: var(--soft);
+}
+.line-system {
+  border-left: 3px solid var(--accent);
+}
+.agent-line .rich-text {
+  font-size: 13px;
+  line-height: 1.65;
+}
+.line-meta {
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.line-meta time,
+.agent-line time {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 10px;
+}
+.line-meta span {
+  color: var(--accent);
+  font-size: 10px;
+}
+.agent-line summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.agent-line summary:after {
+  content: "＋";
+  margin-left: auto;
+  color: var(--muted);
+}
+.agent-line details[open] > summary:after {
+  content: "−";
+}
+.agent-line pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 310px;
+  overflow: auto;
+  font-size: 12px;
+}
+.agent-compose {
+  padding: 8px clamp(16px, 3vw, 40px) 15px;
+}
+.agent-compose .composer-caption {
+  align-items: center;
+}
+.queue-option {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.queue-option input {
+  width: auto;
+}
+.older-lines {
+  display: block;
+  font-size: 12px;
+  color: var(--accent);
+  padding: 6px;
+}
+.chief-step {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 7px 0;
+}
+.chief-step summary {
+  cursor: pointer;
+}
+.chief-step p {
+  white-space: pre-wrap;
+}
+.agent-choices button {
+  margin: 5px 8px 3px 0;
+}
+.thread-intro {
+  text-align: center;
+}
+.project-discussion-form {
+  display: grid;
+  gap: 14px;
+}
+.project-discussion-form label {
+  display: grid;
+  gap: 6px;
+}
+.agent-stream .approval-card {
+  max-width: 840px;
+  margin: 10px auto;
+}
+.chief-inline-result {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.agent-tree .tree-node {
+  justify-content: flex-start;
+}
+.tree-copy strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.agent-line details {
+  margin: 0;
+}
+.queue-option,
+.queue-option input {
+  margin: 0;
+}
+.agent-line .rich-text code {
+  background: var(--subtle);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.line-user .rich-text code {
+  background: var(--surface);
+}
+.tree-role {
+  margin: 4px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.tree-role > summary {
+  cursor: pointer;
+}
+.tree-role small {
+  opacity: 0.75;
+}

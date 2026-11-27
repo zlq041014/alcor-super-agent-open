@@ -1,0 +1,31 @@
+{
+  "id": "select-color-tag",
+  "category": "feature",
+  "title": "增加标签颜色回退",
+  "prompt": "按标签查颜色，优先使用标签自己的色值，再用 default，最后用空字符串。标签大小写不敏感；空字符串是有意设置，不要当作缺省。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

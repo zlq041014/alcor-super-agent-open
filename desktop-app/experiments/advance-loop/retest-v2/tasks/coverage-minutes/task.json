@@ -1,0 +1,31 @@
+{
+  "id": "coverage-minutes",
+  "category": "bugfix",
+  "title": "避免重复统计覆盖时长",
+  "prompt": "把工作时段的覆盖分钟数算出来。重叠时段只算一次；输入不保证顺序，端点可以刚好接上。结束早于或等于开始的不计入。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

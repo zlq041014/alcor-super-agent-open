@@ -1,0 +1,111 @@
+/* One reading lane: incoming content keeps a common left edge; only user speech moves right. */
+.messages,
+.conversation-lane {
+  width: 100%;
+  max-width: 840px;
+  min-width: 0;
+  margin-inline: auto;
+}
+.messages > .message.user {
+  margin-left: auto;
+  width: fit-content;
+  max-width: min(82%, 640px);
+  flex-direction: row-reverse;
+  gap: 0;
+}
+.messages > .message.user .message-avatar {
+  display: none;
+}
+.messages > .message.user .message-content,
+.conversation-lane > .line-user,
+.native-chat .native-user {
+  border: 1px solid var(--line);
+  border-radius: 16px 16px 4px 16px;
+  background: var(--soft);
+  padding: 10px 15px;
+  text-align: start;
+}
+.messages > .message.user .message-content {
+  flex: 0 1 auto;
+}
+.messages .user .message-heading,
+.conversation-lane > .line-user .line-meta {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin: 0 0 5px;
+  gap: 7px;
+}
+.messages > .message:not(.user) {
+  margin-left: 0;
+  margin-right: auto;
+  max-width: 100%;
+  justify-content: flex-start;
+}
+.chief-wait {
+  margin: -8px 0 16px;
+  padding-left: 43px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.delivery-state {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.conversation-lane > .agent-line {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 15px 0;
+}
+.conversation-lane > .line-assistant,
+.conversation-lane > .agent-line:not([class*="line-"]) {
+  background: transparent;
+  border-color: transparent;
+  padding-left: 0;
+}
+.conversation-lane > .line-user {
+  max-width: min(82%, 640px);
+  margin-left: auto;
+  margin-right: 0;
+}
+.conversation-lane > .work-section,
+.conversation-lane > .approval-card {
+  margin-left: 0;
+  margin-right: auto;
+}
+.conversation-lane > .work-section {
+  margin-block: 9px 17px;
+}
+.messages > .message .rich-text,
+.conversation-lane .rich-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.native-chat .native-message {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  margin: 9px auto 9px 0;
+  width: fit-content;
+  max-width: 100%;
+}
+.native-chat .native-user {
+  margin-left: auto;
+  margin-right: 0;
+  max-width: 82%;
+}
+.native-chat .native-user > small {
+  display: block;
+  text-align: right;
+}
+.native-chat .native-message pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+}
+@media (max-width: 1060px) {
+  .messages > .message.user,
+  .conversation-lane > .line-user,
+  .native-chat .native-user {
+    max-width: 87%;
+  }
+}

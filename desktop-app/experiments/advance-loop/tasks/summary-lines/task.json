@@ -1,0 +1,31 @@
+{
+  "id": "summary-lines",
+  "title": "支持跨行引文前缀",
+  "category": "feature",
+  "prompt": "摘要工具加一个 prefix 设置，应用到每一行，包括中间的空行。输入如果用 CRLF 换行，输出要原样保持这种换行，尾部换行后不新增一行。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

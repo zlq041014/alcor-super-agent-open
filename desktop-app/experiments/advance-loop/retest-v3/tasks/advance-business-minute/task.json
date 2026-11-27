@@ -1,0 +1,31 @@
+{
+  "id": "advance-business-minute",
+  "title": "增加工作时间内延后",
+  "category": "feature",
+  "prompt": "从 utc ISO start 延后 minutes 个工作分钟。以 UTC 计，周一到周五是工作日，每天 [09:00,12:00) 与 [13:00,18:00) 有效；holidays 里的 ISO 日期跳过。若起点不在工作时段先移到下一段开始。正好耗完一个时段返回该段的结束时刻，不自动跳到下一段。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

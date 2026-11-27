@@ -1,0 +1,31 @@
+{
+  "id": "catalog-filters",
+  "title": "加入组合筛选",
+  "category": "feature",
+  "prompt": "目录查找支持按标题关键词和最低、最高评分一起筛选。关键词不分大小写，评分边界包含在结果里；没填的条件不限制，返回原有顺序。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

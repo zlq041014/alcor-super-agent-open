@@ -1,0 +1,31 @@
+{
+  "id": "csv-quotes",
+  "title": "修复带引号的 CSV 字段",
+  "category": "bugfix",
+  "prompt": "现在逗号和双引号出现在带引号字段里时，会把 CSV 一行拆错。请按 CSV 转义规则修好，保留空字段和原有未加引号字段。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

@@ -1,0 +1,31 @@
+{
+  "id": "reading-slots",
+  "title": "修复预约时间重叠",
+  "category": "bugfix",
+  "prompt": "预约时间按半开区间处理。相邻两个时段不算冲突，完全包含要算，空时段不算。请修复冲突判断。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

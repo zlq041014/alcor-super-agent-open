@@ -1,0 +1,31 @@
+{
+  "id": "consolidate-resource-key",
+  "category": "refactor",
+  "title": "共用资源编号转换",
+  "prompt": "日历和详情的资源编号转换重复。让两个入口调用同一个转换函数，继续把两端空格去掉、转小写，内部多段空白用一个下划线连接。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

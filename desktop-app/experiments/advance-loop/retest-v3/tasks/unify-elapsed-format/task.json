@@ -1,0 +1,31 @@
+{
+  "id": "unify-elapsed-format",
+  "title": "共用用时徽标",
+  "category": "refactor",
+  "prompt": "把侧栏、详情和历史重复的用时格式化统一到一个函数，保持现在输出。负值和 0 都按 0 秒，小于一分钟向下取整显示秒，满一分钟显示完整分钟和剩余秒。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

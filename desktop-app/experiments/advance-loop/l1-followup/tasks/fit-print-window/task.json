@@ -1,0 +1,31 @@
+{
+  "id": "fit-print-window",
+  "title": "分页预览归一化选区",
+  "category": "bugfix",
+  "prompt": "打印预览选区超界时不要显示空白页。start/end 是从 1 起、含首尾的页码，可以是数字或纯数字字符串；没给就分别用第一页和最后一页，非法值也用同样默认值。先夹到范围再整理逆序，返回 {first,last,count}。空文档三个字段都是 0。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

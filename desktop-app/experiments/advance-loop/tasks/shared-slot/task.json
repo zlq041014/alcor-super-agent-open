@@ -1,0 +1,31 @@
+{
+  "id": "shared-slot",
+  "title": "集中时段边界判断",
+  "category": "refactor",
+  "prompt": "日历视图和报名入口各写了一遍时段是否包含某分钟的规则。请共用一个函数，开始时间包含，结束时间排除，两个入口的表现不要改。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

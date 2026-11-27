@@ -1,0 +1,31 @@
+{
+  "id": "compact-id-ranges",
+  "category": "bugfix",
+  "title": "压缩乱序编号",
+  "prompt": "编号摘要会把连续编号合成 起点..终点。输入现在可能乱序、有重复或负数，摘要按数值升序去重再压缩，单个编号不要写成区间。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

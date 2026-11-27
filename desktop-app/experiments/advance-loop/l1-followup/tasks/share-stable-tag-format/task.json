@@ -1,0 +1,31 @@
+{
+  "id": "share-stable-tag-format",
+  "title": "把标签标准化独立成共享函数",
+  "category": "refactor",
+  "prompt": "筛选器和导出器各有一份标签清洗。抽取 src/tags.mjs 的 normalizeTags(values) 让两者共用。保留先去两侧空白、转小写、忽略非字符串和空值、按首次出现去重的行为；筛选仍返回数组，导出仍用逗号拼接。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

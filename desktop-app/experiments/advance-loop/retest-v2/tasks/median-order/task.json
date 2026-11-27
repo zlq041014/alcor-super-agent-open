@@ -1,0 +1,31 @@
+{
+  "id": "median-order",
+  "category": "bugfix",
+  "title": "修正统计中位数",
+  "prompt": "统计值应按数字排序取中位数，偶数条取中间两个的平均值；空列表返回 null，不改调用方的原数组。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

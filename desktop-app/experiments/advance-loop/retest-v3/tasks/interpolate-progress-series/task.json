@@ -1,0 +1,31 @@
+{
+  "id": "interpolate-progress-series",
+  "title": "插值显示进度历史",
+  "category": "feature",
+  "prompt": "查询进度点时，当时间不在采样点上，用两侧采样值线性插值。时间相同以最后输入为准；采样可能乱序。早于第一条和晚于最后一条都固定在端点，输入为空返回 null。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

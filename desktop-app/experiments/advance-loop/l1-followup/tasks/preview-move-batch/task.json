@@ -1,0 +1,31 @@
+{
+  "id": "preview-move-batch",
+  "title": "预览编号列表的批量移动",
+  "category": "feature",
+  "prompt": "预览批量移动：给定唯一 ID 列表和 selected，把实际选中的项按原列表顺序移到目标 before 之前；before 不存在时放到最后，before 自己被选中时保持原顺序。忽略选区的重复和未知 ID，不改输入，只返回新的 ID 列表。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

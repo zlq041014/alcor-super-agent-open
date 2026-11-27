@@ -1,0 +1,31 @@
+{
+  "id": "label-usage-quantiles",
+  "title": "在用量样本中增加可用延迟分位数",
+  "category": "feature",
+  "prompt": "用量摘要保留 count、known 和 mean，增加 p50、p95。只统计有限且不小于零的数值：count 是所有样本数，known 是有效样本数。分位数用最近秩法（ceil(n*p) 对应从 1 起的排序位置），没有有效数据时 mean、p50、p95 都返回 null，不改变原数组。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

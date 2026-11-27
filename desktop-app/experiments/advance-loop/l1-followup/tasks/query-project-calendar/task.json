@@ -1,0 +1,31 @@
+{
+  "id": "query-project-calendar",
+  "title": "日历小组件显示下次重复提醒",
+  "category": "feature",
+  "prompt": "给日历增加 nextReminder(after, weekdays, time)：after 是 UTC 毫秒，weekdays 用 0=周日到 6=周六，time 是严格的 HH:mm。返回严格晚于 after 的下次提醒 UTC 毫秒；空日期、非整数星期或非法时间返回 null。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

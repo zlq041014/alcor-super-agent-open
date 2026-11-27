@@ -1,0 +1,31 @@
+{
+  "id": "pin-recent-results",
+  "title": "历史结果先按钉选顺序展示",
+  "category": "feature",
+  "prompt": "历史面板支持 pinned ID 列表：已存在的钉选项按列表顺序提前，重复或不存在的 ID 忽略。其他结果按 at 从新到旧排，同时间保留输入顺序。按 limit 截断（缺省不截断），不要修改传入的历史和钉选列表。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

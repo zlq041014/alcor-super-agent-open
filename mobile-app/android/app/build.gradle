@@ -1,0 +1,45 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'app.alcor.mobile'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'app.alcor.mobile'
+        minSdk 26
+        targetSdk 36
+        testInstrumentationRunner 'app.alcor.mobile.MaterialsCheck'
+        versionCode 1
+        versionName '0.1.0'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    sourceSets.main.assets.srcDir layout.buildDirectory.dir('generated/art')
+    sourceSets.main.res.srcDir layout.buildDirectory.dir('generated/launcher')
+}
+
+dependencies {
+    implementation 'androidx.core:core:1.9.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}
+
+def design = rootProject.file('../prototype/assets')
+def design2 = rootProject.file('../prototype-v2/assets')
+tasks.register('appArt', Sync) {
+    from(design) { include 'avatar.png', 'search-source.png'; into 'assets' }
+    from(design2) {
+        include 'phone-assistant.png', 'exec-*.png', 'handoff.png', 'decision.png', 'receipt.png', 'computer-asleep.png',
+            'offline-phone.png', 'find-sessions.png', 'note.png', 'all-clear.png', 'voice-note.png', 'camera-ask.png',
+            'album.png', 'link-read.png', 'permissions.png', 'reminder.png', 'memory.png', 'app-lock.png', 'backup.png', 'agent-tree.png', 'slides.png', 'pet/alcor-pet.png'
+        into 'assets'
+    }
+    from(rootProject.file('../prototype-v2/assets/pet/pet-data.js')) { into 'features' }
+    into layout.buildDirectory.dir('generated/art')
+}
+tasks.register('appLauncher', Sync) {
+    from(design) { include 'app-icon-192.png'; rename { 'alcor.png' }; into 'drawable-nodpi' }
+    into layout.buildDirectory.dir('generated/launcher')
+}
+tasks.named('preBuild').configure { dependsOn 'appArt', 'appLauncher' }

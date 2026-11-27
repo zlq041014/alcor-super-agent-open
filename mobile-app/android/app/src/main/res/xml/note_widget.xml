@@ -1,0 +1,5 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="104dp" android:minHeight="48dp"
+    android:initialLayout="@layout/note_widget" android:previewLayout="@layout/note_widget"
+    android:targetCellWidth="2" android:targetCellHeight="1"
+    android:updatePeriodMillis="0" android:widgetCategory="home_screen"/>

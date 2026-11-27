@@ -1,0 +1,8 @@
+{
+  "description": "星引微信文件导入",
+  "projectname": "alcor-wechat-import",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "miniprogram/",
+  "appid": "",
+  "setting": { "es6": true, "urlCheck": true }
+}

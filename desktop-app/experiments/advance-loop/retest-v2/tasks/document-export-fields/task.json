@@ -1,0 +1,31 @@
+{
+  "id": "document-export-fields",
+  "category": "docs",
+  "title": "修正导出字段说明",
+  "prompt": "导出结果现在返回 exportedAt 和 taskCount，帮助页还写 timestamp 和 count。请把文档与示例改成实际字段，保留应用的现有接口。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

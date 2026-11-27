@@ -1,0 +1,4 @@
+{
+  "pages": ["pages/import/index"],
+  "window": { "navigationBarTitleText": "微信文件 · 星引", "navigationBarBackgroundColor": "#f7f8fc" }
+}

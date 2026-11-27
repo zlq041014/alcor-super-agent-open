@@ -1,0 +1,31 @@
+{
+  "id": "document-status",
+  "title": "对齐归档说明和实际结果",
+  "category": "docs",
+  "prompt": "帮助页把已归档项说成会出现在工作动态里。请基于现在的实现修正规则和例子，仍然保留历史中的归档项。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

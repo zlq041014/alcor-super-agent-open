@@ -1,0 +1,48 @@
+{
+  "version": 2,
+  "model": "deepseek-flash",
+  "effort": "max",
+  "limits": { "runs": 6, "wallMinutes": 10, "runMinutes": 2, "slots": 2 },
+  "gates": { "parallelMinimumMedianSaving": 0.15, "minimumPairedEvidence": 3 },
+  "ordering": {"clips":["AB","BA"],"colors":["BA","AB"],"focus":["CB","BC","CB"],"existing":["BC","CB"]},
+  "faults": ["S1 missing then original receipt", "S2 two and one slots", "S3 stale version and lost assembly receipt", "S4 limits, pause and cancel", "S5 frozen public source and offline", "S6 monitor, deadline and lost stop receipt"],
+  "cases": {
+    "clips": {
+      "goal": "分别从 west.txt 和 east.txt 制作 west.json 与 east.json，两个成果之间没有依赖。每行是编号、起始秒、持续秒，用空格分隔。输出按起始秒升序排列的 JSON 数组，记录仅含 id、startMs、endMs，两个时间均为整数毫秒。若当前环境提供 suggest_branches，可把 east.json 作为一个必需的独立分支，自己交付 west.json；没有该工具时在当前回合完成两个。不要调用原生子代理、联网或运行命令；只读这两个输入，只写所需输出。",
+      "inputs": {"west.txt":"walk 8.25 1.5\nstart 0 .75\nfade 11.2 .8\nturn 3.08 2.44\n","east.txt":"mirror 2.4 .375\nramp 9 1.125\nopen .32 .88\nbend 5.055 1.945\n"},
+      "expected": {
+        "west.json": [{"id":"start","startMs":0,"endMs":750},{"id":"turn","startMs":3080,"endMs":5520},{"id":"walk","startMs":8250,"endMs":9750},{"id":"fade","startMs":11200,"endMs":12000}],
+        "east.json": [{"id":"open","startMs":320,"endMs":1200},{"id":"mirror","startMs":2400,"endMs":2775},{"id":"bend","startMs":5055,"endMs":7000},{"id":"ramp","startMs":9000,"endMs":10125}]
+      }
+    },
+    "colors": {
+      "goal": "分别从 daylight.txt 和 night.txt 制作 daylight.json 与 night.json，两者无依赖。每行是名称和 RGB 的三个十进制整数，用空格分隔。输出 JSON 对象，键为名称、值为小写六位 #rrggbb。若当前环境提供 suggest_branches，可把 night.json 作为必需的独立分支，自己交付 daylight.json；否则在本轮顺序完成。只读这两个输入且只写目标文件，不调用原生子代理、命令或联网。",
+      "inputs": {"daylight.txt":"mist 40 5 255\nbright 255 130 15\nframe 128 240 8\nsign 0 16 64\nshade 255 255 255\n","night.txt":"cloud 10 2 4\npath 20 90 210\nframe 180 255 17\nalert 200 30 32\nshade 16 32 48\n"},
+      "expected": {
+        "daylight.json": {"mist":"#2805ff","bright":"#ff820f","frame":"#80f008","sign":"#001040","shade":"#ffffff"},
+        "night.json": {"cloud":"#0a0204","path":"#145ad2","frame":"#b4ff11","alert":"#c81e20","shade":"#102030"}
+      }
+    },
+    "focus": {
+      "goal": "为目标 WCAG 2.2 的“有键盘焦点的组件不能被作者创建的内容完全隐藏”最低规则交付 profile.json。输入 trials.txt 是此前在目标浏览器中执行的两种组件试验；选择确实通过的一种。JSON 仅含三个键：criterion（规则编号字符串）、level（一致性级别）、interaction（native-button 或 custom-div）。不可用近似规则编号。可采用已有的研究交接，只读 trials.txt，不自行联网、运行命令或调用其他执行端。",
+      "inputs": {"trials.txt":"目标版本 WCAG 2.2\n实测结果：native-button=keyboard-ok\ncustom-div=keyboard-fail\n"},
+      "expected": {"profile.json":{"criterion":"2.4.11","level":"AA","interaction":"native-button"}},
+      "research": {
+        "key":"focus-rule","consumer":"main","mode":"before","version":"2.2",
+        "question":"核对 WCAG 2.2 Focus Not Obscured (Minimum) 的规则编号和级别，结合已有的小样选择键盘实现。",
+        "sources":[{"url":"https://www.w3.org/TR/WCAG22/","kind":"official","version":"2.2"}],
+        "sample":{"path":"trials.txt","choices":[{"route":"native-button","contains":"native-button=keyboard-ok"},{"route":"custom-div","contains":"custom-div=keyboard-ok"}]}
+      }
+    },
+    "existing": {
+      "goal": "按项目现有同版本范例 example.txt 输出 mode.json，只保留字段 mode（范例中通过的编号）。这是直接仿用本地范例的小任务，不需要联网、研究回合、命令或其他 Agent。",
+      "inputs": {"example.txt":"格式 2.2，本地同版本结构\nmode=topic-keyboard-ok\n"},
+      "expected": {"mode.json":{"mode":"topic-keyboard"}},
+      "research": {
+        "key":"local-pattern","consumer":"main","mode":"local","version":"2.2",
+        "question":"直接沿用已验证本地范例的 mode",
+        "sample":{"path":"example.txt","choices":[{"route":"topic-keyboard","contains":"mode=topic-keyboard-ok"},{"route":"custom","contains":"mode=custom-ok"}]}
+      }
+    }
+  }
+}

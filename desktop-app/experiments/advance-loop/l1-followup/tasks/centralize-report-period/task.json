@@ -1,0 +1,31 @@
+{
+  "id": "centralize-report-period",
+  "title": "统一周报和月报日期范围格式",
+  "category": "refactor",
+  "prompt": "周报和月报各自格式化闭区间日期：把日期格式化移到 src/period.mjs 的 formatPeriod(first, last)，两个标题入口都使用它，保留标题前缀、同日缩写、首尾空白与无效日期的现有表现。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

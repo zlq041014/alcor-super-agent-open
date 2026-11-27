@@ -1,0 +1,31 @@
+{
+  "id": "apportion-points",
+  "category": "bugfix",
+  "title": "让整数配额精确分配",
+  "prompt": "按各项权重分配整数配额，结果总和必须等于给定配额。先向下取整，剩余配额给余数最大的项；余数相同按输入顺序。权重都为零时返回全零。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

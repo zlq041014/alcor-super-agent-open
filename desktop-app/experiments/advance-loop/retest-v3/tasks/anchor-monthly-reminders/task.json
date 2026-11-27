@@ -1,0 +1,31 @@
+{
+  "id": "anchor-monthly-reminders",
+  "title": "增加以原日期为锚的月提醒",
+  "category": "feature",
+  "prompt": "从 start 起每月生成提醒。某个月没有原来的日号时用月末，但下一个月仍按原日号。返回严格晚于 after 的 limit 条 ISO 日期；日期比较按公历，空 after 时从 start 算起。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

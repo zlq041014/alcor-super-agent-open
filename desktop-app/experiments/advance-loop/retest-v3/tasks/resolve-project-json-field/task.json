@@ -1,0 +1,31 @@
+{
+  "id": "resolve-project-json-field",
+  "title": "增加路径式项目字段查询",
+  "category": "feature",
+  "prompt": "查询嵌套 JSON 字段：空路径返回根；以 / 开头的路径按 / 切段，~1 表示 /、~0 表示 ~，按 JSON Pointer 顺序解码，非法转义返回 found:false。数组只接收不带前导零的整数下标；对象只查询自己的字段，null 值和空键都是有效结果。返回 {found,value} 或 {found:false}。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

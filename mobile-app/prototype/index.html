@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#6657d9">
+  <title>星引 Alcor · 手机总管首版交互原型</title>
+  <link rel="icon" href="assets/app-icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="stage">
+    <aside class="guide" aria-label="场景导览">
+      <header class="guide-head">
+        <img src="assets/app-icon-192.png" alt="" class="guide-logo">
+        <div>
+          <h1>星引手机总管 · 首版原型</h1>
+          <p>交互设计稿，不连接真实模型或电脑；所有回执由右侧「模拟证据」产生。</p>
+        </div>
+      </header>
+      <nav id="scenarios" class="scenarios"></nav>
+      <section class="brand-board">
+        <h2>图标</h2>
+        <div class="icon-row">
+          <figure><img src="assets/app-icon-192.png" alt="" class="m-squircle" width="72" height="72"><figcaption>启动器</figcaption></figure>
+          <figure><img src="assets/app-icon-192.png" alt="" class="m-circle" width="48" height="48"><figcaption>圆形遮罩</figcaption></figure>
+          <figure><img src="assets/app-icon-192.png" alt="" class="m-squircle" width="24" height="24"><figcaption>24px</figcaption></figure>
+          <figure><img src="assets/app-icon-b-192.png" alt="" class="m-squircle" width="48" height="48"><figcaption>备选</figcaption></figure>
+        </div>
+        <div class="icon-row special" id="special-icons"></div>
+      </section>
+    </aside>
+
+    <main class="device-wrap">
+      <div class="device" id="device">
+        <div class="statusbar" aria-hidden="true">
+          <span>10:24</span>
+          <span class="sb-icons" id="sb-icons"></span>
+        </div>
+        <div class="app" id="app"></div>
+      </div>
+    </main>
+
+    <aside class="notes" aria-label="设计说明与模拟控制">
+      <section class="note-card" id="note"></section>
+      <section class="note-card controls">
+        <h2>模拟环境 <small>仅原型</small></h2>
+        <label class="switch"><input type="checkbox" id="ctl-net" checked><span>手机网络</span></label>
+        <label class="switch"><input type="checkbox" id="ctl-work"><span>工作电脑在线</span></label>
+        <label class="switch"><input type="checkbox" id="ctl-dark"><span>深色</span></label>
+      </section>
+      <section class="note-card controls" id="evidence"></section>
+    </aside>
+  </div>
+  <button class="guide-fab" id="guide-fab" type="button" aria-label="打开场景导览">场景</button>
+  <script src="app.js"></script>
+</body>
+</html>

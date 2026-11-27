@@ -1,0 +1,31 @@
+{
+  "id": "document-project-pagination",
+  "title": "按实际行为更新项目分页说明",
+  "category": "docs",
+  "prompt": "项目分页 README 写错了。按现有实现说明缺省页长、无效页长的处理、from 的含义，以及什么时候 cursor 是 null。保留 README 的 JSON 示例区，用输入 a/b/c、页长 2、游标 a 后的真实返回值。只改文档，不动代码或测试。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

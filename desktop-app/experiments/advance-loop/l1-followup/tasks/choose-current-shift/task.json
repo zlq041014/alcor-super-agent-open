@@ -1,0 +1,31 @@
+{
+  "id": "choose-current-shift",
+  "title": "班次表忽略旧修订并识别取消",
+  "category": "bugfix",
+  "prompt": "班次表要按站点和班次编号分别取最新修订，编号在站点间可以重复。同一修订最后到达的记录为准；最新记录若取消，整条班次不展示。有效班次保留各自首次出现的顺序。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

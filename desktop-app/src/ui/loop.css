@@ -1,0 +1,52 @@
+.loop-panel,
+.loop-form {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.loop-criterion,
+.loop-report,
+.loop-checks {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+}
+.loop-panel :is(p, small, strong, summary) {
+  overflow-wrap: anywhere;
+}
+.loop-panel h3,
+.loop-panel p {
+  margin: 0;
+}
+.loop-panel small,
+.loop-checks small {
+  color: var(--muted);
+}
+.loop-panel button {
+  justify-self: start;
+}
+.loop-output {
+  margin-top: 5px;
+}
+.loop-output pre {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.loop-check-info {
+  margin-block: 8px;
+}
+.loop-budget {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.loop-budget input {
+  width: 90px;
+}

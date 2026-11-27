@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+remote=$1
+
+check_paths() {
+  {
+    status=0
+    git -c core.excludesFile=/dev/null check-ignore --no-index --verbose -z --stdin || status=$?
+    if ((status > 1)); then exit "$status"; fi
+  } | (
+    blocked=0
+    while IFS= read -r -d '' source && IFS= read -r -d '' line &&
+      IFS= read -r -d '' pattern && IFS= read -r -d '' path; do
+      case "$source" in .gitignore|*/.gitignore) ;; *) continue ;; esac
+      [[ "$pattern" == '!'* ]] && continue
+      printf 'Push blocked: %q (%s:%s)\n' "$path" "$source" "$line" >&2
+      blocked=1
+    done
+    exit "$blocked"
+  )
+}
+
+while read -r local_ref local_oid remote_ref remote_oid; do
+  if [[ "$local_ref" != refs/heads/* || "$remote_ref" != refs/heads/* ]]; then
+    printf 'Push blocked: expected an explicit branch update (%s -> %s).\n' "$local_ref" "$remote_ref" >&2
+    exit 1
+  fi
+
+  if [[ ! "$remote_oid" =~ ^0+$ ]] && ! git merge-base --is-ancestor "$remote_oid" "$local_oid"; then
+    printf 'Push blocked: fetch and review the target branch before updating it (%s).\n' "$remote_ref" >&2
+    exit 1
+  fi
+
+  git ls-tree -r --name-only -z "$local_oid" | check_paths
+
+  if [[ "$remote_oid" =~ ^0+$ ]]; then
+    commits=("$local_oid" --not "--remotes=$remote")
+  else
+    commits=("$remote_oid..$local_oid")
+  fi
+  git rev-list "${commits[@]}" | while IFS= read -r commit; do
+    git diff-tree --root -m -r --no-commit-id --no-renames --name-only --diff-filter=ACMT -z "$commit"
+  done | check_paths
+done

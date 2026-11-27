@@ -1,0 +1,31 @@
+{
+  "id": "decode-clipboard-events",
+  "title": "修复分片事件文本",
+  "category": "bugfix",
+  "prompt": "剪贴板事件文本会被分块传入。返回每条有 data 的事件，支持 CRLF、LF 和 CR；连续 data 用换行连接。空行分隔事件，忽略冒号注释，event 为空或没写时用 message，id 延续到后续事件（空 id 清除，含 NUL 忽略），末尾没有空行也要交付。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

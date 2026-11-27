@@ -1,0 +1,31 @@
+{
+  "id": "clip-reserved-windows",
+  "title": "按统计范围合并预留时段",
+  "category": "bugfix",
+  "prompt": "预留时段统计有重叠就会重复计费。按半开区间处理，把时段裁到统计范围内，合并重叠和首尾相接的时段，按起点排序返回 windows 和分钟总数 minutes。忽略反向或空时段，别改原数组。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

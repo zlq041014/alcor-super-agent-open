@@ -1,0 +1,9 @@
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="note" android:icon="@mipmap/alcor_icon"
+        android:shortcutShortLabel="@string/note_title">
+        <intent android:action="app.alcor.mobile.NOTE" android:targetPackage="app.alcor.mobile"
+            android:targetClass="app.alcor.mobile.NoteActivity">
+            <extra android:name="source" android:value="shortcut"/>
+        </intent>
+    </shortcut>
+</shortcuts>

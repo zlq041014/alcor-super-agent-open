@@ -1,0 +1,44 @@
+{
+  "model": "gpt-image-2.5-sunburst",
+  "size": "1024x1024",
+  "style": "Soft glossy 3D icon in a clean modern product style, rounded friendly shapes, main color violet #6657D9 with lavender #EFECFF highlights and a small warm amber #F5A524 accent, gentle studio lighting, subtle soft inner shadow, crisp edges, single centered object with generous empty padding around it, on a transparent background, real PNG alpha channel, no backdrop, no ground shadow, no text, no letters, no numbers, no logos.",
+  "styleWarm": "Soft glossy 3D icon in a clean modern product style, rounded friendly shapes, main color warm amber #F5A524 with cream #FFF1D9 highlights and a small violet #6657D9 accent, gentle studio lighting, subtle soft inner shadow, crisp edges, single centered object with generous empty padding around it, on a transparent background, real PNG alpha channel, no backdrop, no ground shadow, no text, no letters, no numbers, no logos.",
+  "reuse": {
+    "from": "../../prototype/art/raw",
+    "names": ["app-icon-a", "exec-codex", "exec-dsh", "handoff", "decision", "receipt", "computer-asleep", "offline-phone", "find-sessions", "phone-assistant"]
+  },
+  "items": [
+    {
+      "name": "app-icon-c",
+      "full": true,
+      "prompt": "Android app icon for a personal AI assistant app named Alcor. Full-bleed square artwork, no rounded corners, no border (the launcher mask is applied later). Background: deep night-sky gradient from indigo #2A2170 at the top to #15103D at the bottom, with a soft violet radial glow behind the character and four or five tiny faint stars. Foreground centered: one cute mascot, a soft plush four-point star shaped like a puffy pillow in bright violet (#8B7CF0 body with lighter #C3B9FF highlights and a darker #4A3CB8 shade), all four points rounded, the top point leaning slightly to the left like a cowlick, with two big round dark eyes with white highlights, small pink blush and a tiny smile, floating. Close to its upper right floats a much smaller warm amber #F5A524 four-point companion star, linked to the mascot by a thin elegant arc of light. Premium soft 3D, simple, very readable at small size, character fills about 60 percent of the canvas. No text, no letters."
+    },
+    {
+      "name": "app-icon-d",
+      "full": true,
+      "prompt": "Android app icon for a personal AI assistant app named Alcor. Full-bleed square artwork, no rounded corners, no border (the launcher mask is applied later). Background: smooth diagonal gradient from deep violet #6657D9 at the top left to warm amber #F5A524 at the bottom right, like night turning into dawn, with a faint soft glow in the center. Foreground centered: one large luminous white four-point guiding star with softly rounded points and a gentle 3D bevel, the top point leaning very slightly to the left; close beside it at the upper right a much smaller cream-white four-point companion star, joined to the large star by a thin elegant arc of light. Minimal, premium, flat-meets-soft-3D, strong silhouette, very readable at 48 pixels. No text, no letters."
+    },
+    { "name": "note", "prompt": "Icon representing jotting down a quick note: a slightly tilted violet sticky notepad with a folded corner and two soft white text lines, a small amber pencil resting diagonally across it, and one tiny sparkle." },
+    { "name": "memory", "prompt": "Icon representing an assistant that remembers things about its user: a small rounded glass jar with a violet lid, holding several tiny glowing four-point stars in violet and white and exactly one amber star, with a soft inner glow." },
+    { "name": "reminder", "prompt": "Icon representing a reminder: a rounded violet bell with a small amber four-point star as its clapper and two tiny motion arcs beside it." },
+    { "name": "persona", "prompt": "Icon representing the personality and tone settings of an assistant: a rounded violet speech bubble showing a simple friendly face made of two white dot eyes and a curved white smile, with a small amber slider knob on a short track beneath it." },
+    { "name": "permissions", "prompt": "Icon representing permission controls: a rounded violet shield with a white toggle switch in the on position on its face, and a tiny amber key leaning against its side." },
+    { "name": "usage", "prompt": "Icon representing token usage and estimated cost: a rounded violet gauge dial with a white needle pointing to the low side, and a short stack of two amber coins in front of it." },
+    { "name": "relay", "prompt": "Icon representing a private encrypted relay between a phone and a computer: a small violet smartphone on the left, a small open laptop on the right, a soft white cloud above the middle with a tiny violet padlock on it, and one glowing amber dotted arc travelling from the phone through the cloud to the laptop." },
+    { "name": "agent-tree", "prompt": "Icon representing a hierarchy of AI agents: one larger rounded violet node at the top with a white four-point star on it, connected by smooth short lines to three smaller rounded nodes below coloured violet, slate blue and teal green, one of them with a tiny amber status dot." },
+    { "name": "mode-life", "styleKey": "styleWarm", "prompt": "Icon representing everyday personal life: a cozy rounded cup of tea with a curl of steam, a tiny potted plant beside it and a small smiling sun peeking from behind, calm and warm." },
+    { "name": "mode-work", "prompt": "Icon representing work: a rounded violet briefcase with a white four-point star badge on its clasp and a tiny amber status light on its corner." },
+    { "name": "weather-rain", "prompt": "Icon representing a rain alert: a soft white and lavender cloud with three violet raindrops and a small open amber umbrella beneath it." },
+    { "name": "nearby", "prompt": "Icon representing nearby places to eat and have fun: a rounded violet map pin with a white fork and spoon symbol inside it, standing on a small rounded lavender map tile, with one small amber star next to it." },
+    { "name": "album", "prompt": "Icon representing tidying a photo album: a neat stack of three rounded photo cards, the top card showing a simple violet mountain with a small amber sun, and a small white check badge on its corner." },
+    { "name": "diagram", "prompt": "Icon representing an architecture diagram: a rounded lavender card holding three rounded violet blocks and one amber block joined by short white arrows in a simple flow chart." },
+    { "name": "slides", "prompt": "Icon representing presentation slides: a rounded violet slide card on a small stand showing a white bar chart and one white title bar, a second paler slide peeking out behind it, and a tiny amber pointer dot." },
+    { "name": "link-read", "prompt": "Icon representing reading a web link: a rounded white document page with soft lavender text lines, held by a violet chain link at its top corner, with a tiny amber bookmark ribbon." },
+    { "name": "voice-note", "prompt": "Icon representing a voice memo: a rounded violet microphone with short white sound wave bars on both sides and a tiny amber record dot." },
+    { "name": "camera-ask", "prompt": "Icon representing taking a photo and asking a question about it: a rounded violet camera with a white lens ring, and a small amber speech bubble with a white sparkle popping from its top right corner." },
+    { "name": "backup", "prompt": "Icon representing a local data backup: a rounded violet storage box with a white circular arrow on its front and a tiny amber padlock on its lid." },
+    { "name": "app-lock", "prompt": "Icon representing an app lock with fingerprint: a rounded violet padlock whose front face shows a white fingerprint pattern, with a tiny amber glow at the keyhole." },
+    { "name": "all-clear", "prompt": "Small friendly illustration meaning everything is handled: a tidy empty rounded violet tray with a white check mark floating above it and two tiny amber sparkles, calm mood." },
+    { "name": "daily-brief", "prompt": "Icon representing a daily briefing: a rounded folded card in white and lavender with a small amber sunrise at its top and three short violet text lines below." }
+  ]
+}

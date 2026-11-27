@@ -1,0 +1,31 @@
+{
+  "id": "extract-shipping-mass",
+  "title": "共用发货重量换算",
+  "category": "refactor",
+  "prompt": "把 itemLabel 和 manifestRow 重复的重量换算抽到 src/mass.mjs 的 toGrams(value, unit)，两处都复用它。保持 kg/g 的换算规则：换算成克后四舍五入，负值、非有限值、未知单位仍不可用。现有入口与输出不变。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

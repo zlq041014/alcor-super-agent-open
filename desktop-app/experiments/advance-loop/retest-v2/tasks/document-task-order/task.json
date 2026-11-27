@@ -1,0 +1,31 @@
+{
+  "id": "document-task-order",
+  "category": "docs",
+  "title": "修正工作列表排序说明",
+  "prompt": "工作列表现在按最后活动时间由近到远，时间相同保持录入顺序；旧说明和例子的顺序不对。请只修正文档，与现有结果一致。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

@@ -1,0 +1,31 @@
+{
+  "id": "protect-doc-inline-code",
+  "title": "保留代码块中的快捷引用",
+  "category": "bugfix",
+  "prompt": "将说明文本里的 [[topic]] 转为 {topic}，只处理字母数字和短横线组成的 topic。三反引号围栏中的整段和成对单反引号的行内代码都要保留；反斜杠转义了左括号时也要原样保留。未匹配的单反引号在该行视为普通字符。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

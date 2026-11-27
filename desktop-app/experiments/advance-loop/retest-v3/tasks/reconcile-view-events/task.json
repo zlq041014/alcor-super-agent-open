@@ -1,0 +1,31 @@
+{
+  "id": "reconcile-view-events",
+  "title": "按修订号恢复工作流状态",
+  "category": "bugfix",
+  "prompt": "从乱序的工作事件恢复列表。对同一 ID，只保留修订号最大的事件；修订号相同选 seq 最大，相同 seq 以最后输入为准。最后若是删除事件就不展示。仍展示的项按各 ID 第一次出现顺序，rev 或 seq 为零也有效。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

@@ -1,0 +1,31 @@
+{
+  "id": "unify-approval-receipt",
+  "title": "共用审批徽标转换",
+  "category": "refactor",
+  "prompt": "侧栏、详情和历史有三套相同的审批徽标转换。让三个入口调用同一个转换定义，保留每个旧状态的中文、未知状态回退，以及 falsy 输入的行为。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}

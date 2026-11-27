@@ -1,0 +1,3 @@
+# 历史回归样例在 Windows 和其他系统上都按冻结清单校验原始 LF 字节。
+desktop-app/experiments/advance-loop/** text eol=lf
+.githooks/* text eol=lf

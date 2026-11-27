@@ -1,0 +1,31 @@
+{
+  "id": "stable-groups",
+  "title": "修复标签分组顺序",
+  "category": "bugfix",
+  "prompt": "标签第一次出现的顺序应该决定分组顺序，组内保留原顺序。数字和恰好叫 constructor 的标签也算普通标签。",
+  "visibleChecks": [
+    {
+      "kind": "command",
+      "name": "test",
+      "program": "npm",
+      "args": [
+        "run",
+        "test"
+      ],
+      "cwd": "."
+    }
+  ],
+  "hiddenChecks": [
+    {
+      "kind": "command",
+      "name": "hidden",
+      "program": "node",
+      "args": [
+        "--test",
+        "hidden/review.mjs"
+      ],
+      "cwd": "."
+    }
+  ],
+  "timeLimitMinutes": 20
+}
