@@ -133,6 +133,105 @@ function review(hub: Hub, run: Run) {
   return { op: "task.control", action: "accept", id: run.taskId, revision: run.revision, runId: run.id,
     evidenceHash: hash(resultEvidence(run, resultArtifacts(hub.store.all<Artifact>("artifact"), run))) };
 }
+
+test("cross-project reuse pins selected accepted text, records explicit use, and preserves withdrawal through restore", async () => {
+  const f = await fixture();
+  try {
+    const add = async (name: string) => {
+      const path = join(f.dir, name); await mkdir(path);
+      return f.hub.request({ op: "project.add", name, path });
+    };
+    const b = await add("允许使用的 B"), c = await add("不共享的 C");
+    const aTask = await created(f, "来源工作标题不应跨项目");
+    const source = await completed(f.hub, aTask, "没有选择的私有段。\n首次：将结果与验收条件放在一起。\n新版：检查附件完整。\n" + f.project);
+    await f.hub.request(review(f.hub, source));
+    const publish = { op: "reuse.publish", title: "交付写法", condition: "仅交接文字结果时", excerpt: "首次：将结果与验收条件放在一起。",
+      taskId: aTask.id, runId: source.id, projectIds: [b.id], requestId: "reuse-v1" };
+    await assert.rejects(f.hub.request({ ...publish, excerpt: f.project, requestId: "raw-path" }), /原项目目录/);
+    const first = await f.hub.request(publish);
+    const ref = ({ id, version, versionId }: typeof first) => ({ id, version, versionId });
+    const prepare = (projectId: string, requestId: string) => f.hub.request({ op: "task.create", requestId,
+      value: { projectId, goal: "写本项目交付说明", mode: "read", advance: "single", reuse: [ref(first)] } });
+    const allowed = await f.hub.request({ op: "reuse.project", projectId: b.id });
+    assert.deepEqual(allowed, [{ ...ref(first), title: publish.title, condition: publish.condition }]);
+    assert.deepEqual(await f.hub.request({ op: "reuse.project", projectId: c.id }), []);
+    await assert.rejects(prepare(c.id, "forbidden"), /授权已变化/);
+    const tick = f.hub.tick.bind(f.hub);
+    f.hub.tick = async () => {};
+    const launch = await prepare(b.id, "reuse-consumer");
+    const task = await f.hub.request({ op: "agent.launch.confirm", id: launch.launchId, profile: { model: "fixture", effort: "max" } });
+    assert.equal(f.hub.reuse.uses().length, 0);
+    const second = await f.hub.request({ ...publish, id: first.id, revision: first.revision, excerpt: "新版：检查附件完整。", requestId: "reuse-v2" });
+    assert.equal(second.version, 2);
+    await assert.rejects(prepare(b.id, "obsolete-new-selection"), /留用版本或项目授权已变化/);
+    await tick();
+    for (let i = 0; i < 100 && f.hub.scheduling; i++) await new Promise(r => setTimeout(r, 5));
+    const prompt = f.codex.calls.filter(x => x.method === "turn/start").at(-1)?.params.input[0].text;
+    assert.match(prompt, /首次：将结果与验收条件放在一起/);
+    assert.doesNotMatch(prompt, /来源工作标题|没有选择的私有段|新版：检查附件完整/);
+    assert.ok(!prompt.includes(JSON.stringify(f.project).slice(1, -1)));
+    const storedTask = f.hub.getTask(task.id);
+    const run = await completed(f.hub, storedTask, "按约定写了交付说明");
+    await f.hub.request(review(f.hub, run));
+    const record = { op: "reuse.record", taskId: storedTask.id, runId: run.id, ref: ref(first), outcome: "used", note: "输出结构与所选内容相符" };
+    await assert.rejects(f.hub.request({ ...record, ref: ref(second) }), /没有发送所选留用版本/);
+    const adopted = await f.hub.request(record);
+    assert.deepEqual(await f.hub.request(record), adopted);
+    assert.deepEqual(adopted.ref, ref(first));
+    const backup = await f.hub.backup();
+    await f.hub.request({ op: "reuse.scope", id: second.id, revision: second.revision, projectIds: [], active: true });
+    assert.deepEqual(await f.hub.request({ op: "reuse.project", projectId: b.id }), []);
+    await f.hub.restore(backup.path);
+    assert.deepEqual(await f.hub.request({ op: "reuse.project", projectId: b.id }), []);
+    assert.throws(() => f.hub.reuse.materials(b.id, storedTask.reuse!), /已撤回或停用/);
+    assert.deepEqual(f.hub.reuse.uses(), [adopted]);
+
+    await f.hub.request({ op: "reuse.scope", id: second.id, revision: second.revision, projectIds: [b.id], active: true });
+    assert.throws(() => f.hub.reuse.materials(b.id, storedTask.reuse!), /已撤回或停用/);
+    const latest = await f.hub.request({ op: "task.create", requestId: "reuse-counterexample", value: {
+      projectId: b.id, goal: "核对新版", mode: "write", advance: "single", reuse: [ref(second)],
+    } });
+    assert.equal(f.hub.launches.pending().find(card => card.id === latest.launchId)?.scope, "project");
+    const target = await f.hub.request({ op: "agent.launch.confirm", id: latest.launchId, profile: { model: "fixture", effort: "max" } });
+    assert.equal(f.hub.getTask(target.id).access, "project");
+    await tick();
+    for (let i = 0; i < 100 && f.hub.scheduling; i++) await new Promise(r => setTimeout(r, 5));
+    const checked = await completed(f.hub, f.hub.getTask(target.id), "没有附件，不适用");
+    await f.hub.request(review(f.hub, checked));
+    const negative = { ...record, taskId: target.id, runId: checked.id, ref: ref(second), outcome: "counterexample" };
+    await assert.rejects(f.hub.request({ ...negative, note: "" }), /不适用的原因/);
+    await f.hub.request({ ...negative, note: "这份交付没有附件" });
+    assert.deepEqual(await f.hub.request({ op: "reuse.project", projectId: b.id }), []);
+    assert.equal(f.hub.reuse.uses().length, 2);
+  } finally { end(f); }
+});
+
+test("reuse withdrawal after native setup prevents sending the prompt", async () => {
+  const f = await fixture();
+  try {
+    const firstTask = await created(f);
+    const run = await completed(f.hub, firstTask);
+    await f.hub.request(review(f.hub, run));
+    const value = await f.hub.request({ op: "reuse.publish", title: "参考", condition: "文字", excerpt: run.response,
+      taskId: firstTask.id, runId: run.id, projectIds: [f.p.id], requestId: "publish-for-fence" });
+    const { id, version, versionId } = value;
+    const original = f.codex.call.bind(f.codex);
+    f.codex.calls.length = 0;
+    f.codex.call = async (method, body) => {
+      const result = await original(method, body);
+      if (method === "thread/start") await f.hub.request({ op: "reuse.scope", id, revision: value.revision, projectIds: [], active: false });
+      return result;
+    };
+    const prepared = await f.hub.request({ op: "task.create", requestId: "reuse-fence", value: {
+      projectId: f.p.id, goal: "复核参考", advance: "single", mode: "read", reuse: [{ id, version, versionId }],
+    } });
+    const task = await f.hub.request({ op: "agent.launch.confirm", id: prepared.launchId, profile: { model: "fixture", effort: "max" } });
+    for (let i = 0; i < 100 && f.hub.scheduling; i++) await new Promise(r => setTimeout(r, 5));
+    assert.ok(f.codex.calls.some(call => call.method === "thread/start"));
+    assert.ok(!f.codex.calls.some(call => call.method === "turn/start"));
+    assert.match(f.hub.getTask(task.id).reason ?? "", /留用内容已撤回/);
+  } finally { end(f); }
+});
 test("runtime schemas reject unknown operations and dangerous implicit modes", () => {
   assert.throws(() => Request.parse({ op: "shell", command: "anything" }));
   assert.throws(() =>

@@ -5,6 +5,7 @@ import {
   TaskInput,
   type LaunchCard,
   type ModelProfile,
+  type ReuseGrant,
   type Task,
 } from "../shared/contracts";
 import type { Hub } from "./service";
@@ -34,6 +35,7 @@ type Record = {
   hash: string;
   state: "pending" | "confirming" | "created" | "cancelled" | "failed";
   profile?: ModelProfile;
+  reuse?: ReuseGrant[];
   result?: any;
   revision?: number;
   error?: string;
@@ -65,12 +67,15 @@ export class Launches {
     const cfg = this.h.settings(),
       profile = defaultProfile(cfg);
     const member = data.kind === "executor" && data.value.rosterId ? this.h.rosterExecutor(data.value.rosterId) : undefined;
+    const reuse = data.kind === "executor" && data.value.reuse?.length ? this.h.reuse.plan(p.id, data.value.reuse) : undefined;
+    const materials = reuse && this.h.reuse.materials(p.id, reuse);
     const backend = member?.source ?? cfg.executorBackend;
     const card: LaunchCard = {
       id,
       kind: data.kind,
       ...(data.kind === "executor" ? { backend } : {}),
       ...(member ? { roster: { id: member.id, name: member.name, revision: member.revision } } : {}),
+      ...(materials ? { reuse: materials.map(({ title, version }) => ({ title, version })) } : {}),
       parentAgentId: parent,
       projectId: p.id,
       title:
@@ -88,7 +93,7 @@ export class Launches {
           ? "discussion"
           : data.value.mode === "read"
             ? "read"
-            : backend === "dsh" ||
+            : materials || backend === "dsh" ||
                 data.value.access === "project" ||
                 data.value.isolate
               ? "project"
@@ -116,6 +121,7 @@ export class Launches {
       data,
       hash: digest,
       state: "pending",
+      ...(reuse ? { reuse } : {}),
       revision: parentTask ? this.h.getTask(parentTask).revision : undefined,
     } satisfies Record);
     this.h.changed();
@@ -183,6 +189,7 @@ export class Launches {
         this.checkDiscussionHandoff(r.data.delegation);
     }
     const backend = r.card.backend ?? "codex";
+    if (r.reuse) this.h.reuse.materials(r.card.projectId, r.reuse);
     if (r.card.roster && this.h.rosterExecutor(r.card.roster.id, r.card.roster.revision).source !== backend)
       throw new Error("Agent 执行来源已变化，请重新准备工作");
     if (r.data.kind === "executor") this.h.checkProfile(profile, backend);

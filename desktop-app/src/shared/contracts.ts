@@ -205,6 +205,7 @@ export interface Task extends Entity {
   backend?: ExecutorBackend; // Tasks created before 0.1.8 belong to Codex.
   rosterId?: string;
   rosterRecorded?: true;
+  reuse?: ReuseGrant[];
   advance?: Advance;
   loopId?: string;
   graph?: true;
@@ -243,6 +244,7 @@ export interface TaskWake extends Entity {
   reason?: string;
 }
 export interface Run extends Entity {
+  reuseInputs?: ReuseGrant[];
   graphAttempt?: GraphAttempt;
   loopRole?: "reviewer";
   nativeAttempt?: { nodeId: string; stepId: string };
@@ -491,6 +493,8 @@ export interface Artifact extends Entity {
   status: string;
 }
 export interface Snapshot {
+  reuseItems: ReuseItem[];
+  reuseUses: ReuseUse[];
   workIssues: WorkIssue[];
   workMethods: WorkMethod[];
   preferenceLearning: boolean;
@@ -555,11 +559,34 @@ export interface LaunchCard {
     discussion: { id: string; role: "user" | "assistant"; text: string }[];
   };
   roster?: { id: string; name: string; revision: number };
+  reuse?: { title: string; version: number }[];
+}
+const ReuseSelection = z.object({ id: z.string().uuid(), version: z.number().int().positive(), versionId: z.string().uuid() }).strict();
+export type ReuseRef = z.infer<typeof ReuseSelection>;
+export type ReuseGrant = ReuseRef & { grant: string };
+export interface ReuseItem extends Entity {
+  title: string;
+  condition: string;
+  version: number;
+  versionId: string;
+  revision: number;
+  projectId: string;
+  projectIds: string[];
+  active: boolean;
+}
+export interface ReuseUse extends Entity {
+  ref: ReuseRef;
+  taskId: string;
+  runId: string;
+  projectId: string;
+  outcome: "used" | "not-used" | "counterexample";
+  note: string;
 }
 export const TaskInput = z
   .object({
     projectId: z.string().min(1),
     rosterId: z.string().uuid().optional(),
+    reuse: z.array(ReuseSelection).max(4).optional(),
     goal: z.string().trim().min(1).max(24000),
     title: z.string().max(120).optional(),
     constraints: z.string().max(12000).default(""),
@@ -614,6 +641,14 @@ export function taskAdvance(
   return advance;
 }
 export const Request = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("reuse.publish"), id: z.string().uuid().optional(), revision: z.number().int().positive().optional(), taskId: id, runId: id,
+    title: z.string().trim().min(1).max(100), condition: z.string().trim().min(1).max(1000), excerpt: z.string().trim().min(1).max(6000),
+    projectIds: z.array(id).min(1).max(12), requestId: id }).strict(),
+  z.object({ op: z.literal("reuse.scope"), id, revision: z.number().int().positive(), projectIds: z.array(id).max(12), active: z.boolean() }).strict(),
+  z.object({ op: z.literal("reuse.project"), projectId: id }).strict(),
+  z.object({ op: z.literal("reuse.inspect"), ref: ReuseSelection }).strict(),
+  z.object({ op: z.literal("reuse.record"), taskId: id, runId: id, ref: ReuseSelection,
+    outcome: z.enum(["used", "not-used", "counterexample"]), note: z.string().trim().max(2000) }).strict(),
   z.object({ op: z.literal("roster.add"), name: z.string().trim().min(1).max(80),
     source: z.enum(["codex", "dsh", "manual"]), mode: z.enum(["managed", "record"]), note: z.string().trim().max(2000), requestId: id }).strict(),
   z.object({ op: z.literal("roster.update"), id, revision: z.number().int().positive(), name: z.string().trim().min(1).max(80),

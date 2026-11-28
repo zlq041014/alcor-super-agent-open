@@ -76,6 +76,7 @@ import { AgentTree, AgentWorkspace, stateOf } from "./agents";
 import { AgentRoster } from "./agent-roster";
 import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import { MobileDelivery } from "./mobile-delivery";
+import { RecordReuse, ReuseLibrary, SaveReuse } from "./reuse-items";
 import { WorkRecord, messageWork } from "./work-record";
 import { ProfilePicker, effortName } from "./model-profile";
 import {
@@ -573,6 +574,7 @@ function App() {
     chat: "与星引对话",
     work: "所有工作",
     roster: "Agent 名册",
+    library: "留用架",
     projects: "项目空间",
     sessions: "Codex 会话",
     memory: "明确规则",
@@ -584,6 +586,7 @@ function App() {
     ["work", "工作", Layers3],
     ["projects", "项目", FolderOpen],
     ["roster", "Agent 名册", Terminal],
+    ["library", "留用架", BookOpen],
     ["sessions", "原生会话", Terminal],
     ["memory", "规则记忆", BookOpen],
     ["history", "历史搜索", History],
@@ -808,6 +811,7 @@ function App() {
                       key={selectedTask.id}
                       task={selectedTask}
                       snapshot={s}
+                      refresh={refresh}
                       onBack={() => openAgent(CHIEF)}
                       onControl={control}
                       onEdit={() => {
@@ -1312,6 +1316,8 @@ function App() {
             )}
             {view === "roster" && <AgentRoster snapshot={s} request={api.request} refresh={refresh}
               openTask={t => void selectTask(t)} showLaunch={showRouted} />}
+            {view === "library" && <ReuseLibrary snapshot={s} request={api.request} refresh={refresh}
+              showLaunch={showRouted} openTask={t => void selectTask(t)} />}
             {view === "work" && (
               <div className="page">
                 <PageTitle
@@ -1968,6 +1974,7 @@ function App() {
             委派{pendingLaunch.kind === "discussion" ? "讨论" : "执行"} Agent
           </p>
           {pendingLaunch.roster && <p className="field-help">承办 Agent：{pendingLaunch.roster.name}</p>}
+          {pendingLaunch.reuse?.length ? <p className="field-help">本次留用：{pendingLaunch.reuse.map(item => `${item.title} · 第 ${item.version} 版`).join("、")}</p> : null}
           <h3>{pendingLaunch.title}</h3>
           <p className="launch-goal">{pendingLaunch.detail}</p>
           {pendingLaunch.handoff && <>
@@ -2457,6 +2464,7 @@ function TaskDetail({
   onEdit,
   onReference,
   onPreview,
+  refresh,
   run,
 }: {
   task: Task;
@@ -2466,6 +2474,7 @@ function TaskDetail({
   onEdit: () => void;
   onReference: () => void;
   onPreview: (id: string) => void;
+  refresh: () => Promise<void>;
   run: (fn: () => Promise<any>) => Promise<any>;
 }) {
   const [tab, setTab] = useState(t.loopId ? "loop" : "result");
@@ -2645,6 +2654,8 @@ function TaskDetail({
               </button>
             ))}
             {r && <MobileDelivery key={r.id} task={t} run={r} files={resultArtifacts(artifacts, r)} request={api.mobile} />}
+            {r && <><SaveReuse key={r.id + ":save"} snapshot={s} task={t} run={r} request={api.request} refresh={refresh} />
+              <RecordReuse key={r.id + ":record"} snapshot={s} task={t} run={r} request={api.request} refresh={refresh} /></>}
             {r?.isolation && (
               <div className="info-box vertical">
                 <p>独立工作区：{r.workPath}</p>

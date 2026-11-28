@@ -119,6 +119,10 @@ export class DshWork {
       key: await this.hub.brain.key(cfg),
     });
     const latest = this.hub.getTask(task.id);
+    if (run.reuseInputs) {
+      try { this.hub.reuse.materials(latest.projectId, run.reuseInputs); }
+      catch (error) { session.close(); throw error; }
+    }
     if (this.hub.methods.version(task.projectId) !== methodVersion) {
       session.close();
       throw new Error("工作方法在准备期间变化，未发送执行回合");
