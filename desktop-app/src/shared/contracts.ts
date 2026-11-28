@@ -537,6 +537,12 @@ export interface LaunchCard {
   scope: "discussion" | "read" | "project" | "codex";
   approval: "never" | "on-request";
   createdAt: string;
+  handoff?: {
+    request: string;
+    constraints: string;
+    acceptance: string;
+    discussion: { id: string; role: "user" | "assistant"; text: string }[];
+  };
 }
 export const TaskInput = z
   .object({
@@ -680,6 +686,12 @@ export const Request = z.discriminatedUnion("op", [
     })
     .strict(),
   z.object({ op: z.literal("agent.launch.cancel"), id }).strict(),
+  z.object({
+    op: z.literal("discussion.prepareHandoff"),
+    agentId: id,
+    text: z.string().trim().min(1).max(12000),
+    requestId: id,
+  }).strict(),
   z
     .object({
       op: z.literal("agent.models"),

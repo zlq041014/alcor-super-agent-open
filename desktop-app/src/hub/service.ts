@@ -732,6 +732,8 @@ export class Hub extends EventEmitter {
           projectId: r.projectId,
           title: r.title,
         });
+      case "discussion.prepareHandoff":
+        return this.desk.prepareHandoff(r.agentId, r.text, r.requestId);
       case "discussion.fromNative":
         return this.launches.propose(r.requestId, {
           kind: "discussion",

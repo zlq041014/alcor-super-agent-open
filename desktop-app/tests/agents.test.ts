@@ -249,6 +249,80 @@ test("explicit project decisions are manageable and stale discussion content can
   }
 });
 
+test("discussion preview survives restart, binds the actual material and only dispatches on confirmation", async () => {
+  const { h, native, dir, projects } = await fixture();
+  let current = h;
+  try {
+    const a = h.desk.open(projects[0], "修复入口"), b = h.desk.open(projects[1], "其他讨论");
+    line(h.store, a.id, "user", "你", "保留返回入口", { id: "preview-source" });
+    line(h.store, b.id, "user", "你", "另一个项目的材料", { id: "outside-preview" });
+    h.store.put("settings", { id: "global", value: { ...h.settings(), defaultAdvance: "loop-native" } });
+    const text = "修复当前项目入口；返回按钮仍能回首页。";
+    await h.request({ op: "agent.draft", agentId: a.id, text });
+    const calls: unknown[] = [];
+    h.brain.handoff = async (_settings, input, _report, preview) => {
+      assert.equal(preview, true);
+      calls.push(JSON.parse(input));
+      return { ready: true, goal: "修复当前项目入口", mode: "write", constraints: "保留返回入口", acceptance: "返回按钮回首页", question: "" };
+    };
+    const request = { op: "discussion.prepareHandoff", agentId: a.id, text, requestId: "preview-one" };
+    const result = await h.request(request);
+    assert.deepEqual(await h.request(request), result);
+    assert.equal(calls.length, 1);
+    assert.equal(h.store.all("task").length, 0);
+    assert.equal(h.store.all("run").length, 0);
+    assert.equal(native.calls.length, 0);
+    assert.equal(h.desk.view(a.id).draft, text);
+    assert.ok(!h.store.get("agent-line", "user:preview-one"));
+    const card = h.launches.pending().find(c => c.id === result.launchId)!;
+    assert.equal(card.scope, "project");
+    assert.equal(card.backend, "codex");
+    assert.equal(card.handoff?.request, text);
+    assert.equal(card.handoff?.acceptance, "返回按钮回首页");
+    assert.match(card.handoff?.constraints ?? "", /保留返回入口/);
+    assert.deepEqual(card.handoff?.discussion.map(row => row.id), ["preview-source"]);
+    assert.doesNotMatch(JSON.stringify(calls), /另一个项目/);
+    await end(h);
+    current = new Hub(join(dir, "state"), native as any);
+    assert.deepEqual(current.launches.pending().find(c => c.id === result.launchId), card);
+    const created = await confirmed(current, result);
+    assert.deepEqual(await confirmed(current, result), created);
+    assert.equal(current.store.all("task").length, 1);
+    const task = current.getTask(created.id);
+    assert.equal(task.loopId, undefined);
+    assert.equal(task.acceptance, card.handoff?.acceptance);
+    const basis = current.store.get("agent-bridge", task.id);
+    assert.deepEqual(basis?.discussion.map((row: { id: string }) => row.id), ["preview-source"]);
+  } finally { await end(current); }
+});
+
+test("unclear, cancelled and stale discussion previews cannot create work or arm a later handoff", async () => {
+  const { h, native, projects } = await fixture();
+  try {
+    const a = h.desk.open(projects[0], "询问交付"), text = "修复入口";
+    const prepare = (requestId: string) => h.request({ op: "discussion.prepareHandoff", agentId: a.id, text, requestId });
+    h.brain.handoff = async () => ({ ready: true, goal: "修复入口", mode: "write", constraints: "", acceptance: "", question: "" });
+    const unclear = await prepare("unclear");
+    assert.equal(unclear.question, "怎样算这项工作完成？");
+    assert.equal(h.store.get("agent-pending-handoff", a.id), undefined);
+    await talk(h, a.id, "返回按钮回首页", "ordinary-reply");
+    assert.equal(h.launches.pending().length, 0);
+    h.brain.handoff = async () => ({ ready: true, goal: "修复入口", mode: "write", constraints: "", acceptance: "返回按钮回首页", question: "" });
+    const cancelled = await prepare("cancelled");
+    await h.request({ op: "agent.launch.cancel", id: cancelled.launchId });
+    await assert.rejects(confirmed(h, cancelled), /已处理/);
+    const stale = await prepare("stale-preview");
+    line(h.store, a.id, "user", "你", "范围还要重新核对", { id: "changed-source" });
+    await assert.rejects(confirmed(h, stale), /讨论内容已更新/);
+    const ruleStale = await prepare("stale-rule-preview");
+    await h.request({ op: "memory.save", projectId: a.projectId, text: "必须保留全部原文", enabled: true });
+    await assert.rejects(confirmed(h, ruleStale), /已处理/);
+    assert.equal(h.store.all("task").length, 0);
+    assert.equal(h.store.all("run").length, 0);
+    assert.equal(native.calls.length, 0);
+  } finally { await end(h); }
+});
+
 test("deleting a migrated project decision keeps it out of an older restored handoff", async () => {
   const { h, projects, dir } = await fixture();
   let reopened: Hub | undefined;

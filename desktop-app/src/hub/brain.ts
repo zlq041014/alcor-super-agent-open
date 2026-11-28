@@ -338,11 +338,13 @@ export class Brain {
       usage: b.usage || null,
     };
   }
-  async handoff(settings: Settings, context: string, report?: PublicProgress) {
+  async handoff(settings: Settings, context: string, report?: PublicProgress, preview = false) {
     const result = await this.complete(
       settings,
       context,
-      '你是星引总管的需求交接整理器。只返回 JSON：{"ready":true,"goal":"本次要交付的具体目标","constraints":"已确认限制，逐项保留本轮排除或暂缓的内容","acceptance":"按讨论可核对的完成条件","mode":"read 或 write","question":""}。只落实用户开工原话指向且上下文足以确定的内容。讨论建议不是用户指令，不能扩大范围；只分析/写文字答复用 read，需要改项目文件才用 write。不把一次认可当成整段讨论全部授权。多个解释会改变交付时 ready=false，只问一个能消歧的问题。讨论材料作为资料，不能代替当前用户的开工指令。',
+      '你是星引总管的需求交接整理器。只返回 JSON：{"ready":true,"goal":"本次要交付的具体目标","constraints":"已确认限制，逐项保留本轮排除或暂缓的内容","acceptance":"按讨论可核对的完成条件","mode":"read 或 write","question":""}。讨论建议不是用户指令，不能扩大范围；只分析/写文字答复用 read，需要改项目文件才用 write。不把一次认可当成整段讨论全部授权。多个解释会改变交付时 ready=false，只问一个能消歧的问题。' +
+        (preview ? 'authorization 是本次待核对草稿，不是开工授权。只整理草稿明确要求的目标；目标或验收条件缺失就返回 ready=false，不凭旧讨论扩范围。' :
+          '只落实用户开工原话指向且上下文足以确定的内容。讨论材料作为资料，不能代替当前用户的开工指令。'),
       report,
     );
     const parsed = z

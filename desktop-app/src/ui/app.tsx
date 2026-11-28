@@ -1947,7 +1947,7 @@ function App() {
       )}
       {pendingLaunch && launchProfile && (
         <Modal
-          title="确认创建 Agent"
+          title={pendingLaunch.handoff ? "确认派工范围" : "确认创建 Agent"}
           onClose={() => {
             if (!launchBusy) setLaunchId(undefined);
           }}
@@ -1962,6 +1962,15 @@ function App() {
           </p>
           <h3>{pendingLaunch.title}</h3>
           <p className="launch-goal">{pendingLaunch.detail}</p>
+          {pendingLaunch.handoff && <>
+            <strong>约束</strong><p className="launch-goal">{pendingLaunch.handoff.constraints.trim()}</p>
+            <strong>验收条件</strong><p className="launch-goal">{pendingLaunch.handoff.acceptance}</p>
+            <details><summary>本次材料 · 原话与 {pendingLaunch.handoff.discussion.length} 条讨论摘录</summary>
+              <p className="launch-goal">{pendingLaunch.handoff.request}</p>
+              {pendingLaunch.handoff.discussion.map(row => <p key={row.id} className="launch-goal">{row.role === "user" ? "你：" : "讨论 Agent："}{row.text}</p>)}
+              <p className="field-help">不带外部文件。</p>
+            </details>
+          </>}
           <ProfilePicker
             s={s}
             backend={
@@ -1999,7 +2008,7 @@ function App() {
                 })
               }
             >
-              取消创建
+              {pendingLaunch.handoff ? "取消派工" : "取消创建"}
             </button>
             <button
               className="primary"
@@ -2023,7 +2032,7 @@ function App() {
                 })
               }
             >
-              {launchBusy ? "正在创建…" : "确认创建"}
+              {launchBusy ? "正在核对…" : pendingLaunch.handoff ? "确认派工" : "确认创建"}
             </button>
           </div>
         </Modal>

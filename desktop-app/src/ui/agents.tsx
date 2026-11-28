@@ -322,7 +322,8 @@ export function AgentWorkspace({
   const [draft, setDraft] = useState(draftCache.get(a.id) || ""),
     [ready, setReady] = useState(false),
     [tab, setTab] = useState("chat"),
-    [queue, setQueue] = useState(false);
+    [queue, setQueue] = useState(false),
+    [preparingHandoff, setPreparingHandoff] = useState(false);
   const input = useRef<HTMLTextAreaElement>(null),
     scroll = useRef<HTMLDivElement>(null),
     dirty = useRef(draftCache.has(a.id)),
@@ -480,6 +481,23 @@ export function AgentWorkspace({
       if (active.current) void readView();
     }
   }
+  async function prepareHandoff() {
+    const text = (draftCache.get(a.id) ?? draft).trim();
+    if (!text) {
+      notify("请先在输入框写下这次要交付的工作。");
+      input.current?.focus();
+      return;
+    }
+    setPreparingHandoff(true);
+    try {
+      const result = await request({ op: "discussion.prepareHandoff", agentId: a.id, text, requestId: crypto.randomUUID() });
+      if (result.launchId) onLaunch(result.launchId);
+      else if (result.question) { notify(result.question); input.current?.focus(); }
+      else if (result.worker) notify("这份要求已经交办，可打开原工作。");
+      else if (result.error) notify(result.error);
+    } catch (e) { notify((e as Error).message); }
+    finally { setPreparingHandoff(false); }
+  }
   async function loadEarlier() {
     const first = older[0] || rows[0];
     if (!first) return;
@@ -550,6 +568,14 @@ export function AgentWorkspace({
               onClick={() => setTab("details")}
             >
               <BookOpen size={14} /> 工作详情与操作
+            </button>
+          )}
+          {discussion && (s.launches.filter(launch => launch.parentAgentId === a.id && launch.kind === "executor").map(launch =>
+            <button key={launch.id} type="button" onClick={() => onLaunch(launch.id)}>核对派工</button>
+          ))}
+          {discussion && !s.launches.some(launch => launch.parentAgentId === a.id && launch.kind === "executor") && (
+            <button type="button" disabled={!ready || !p || !!p.removed || busy || preparingHandoff} onClick={() => void prepareHandoff()}>
+              {preparingHandoff ? "正在准备…" : "准备派工"}
             </button>
           )}
           {onDelegate && (

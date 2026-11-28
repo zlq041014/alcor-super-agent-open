@@ -992,34 +992,41 @@ export class AgentDesk {
       this.hub.changed();
     }
   }
-  async handoff(a: Agent, text: string, id: string) {
+  prepareHandoff(agentId: string, text: string, id: string) {
+    const a = this.agent(agentId);
+    if (a.kind !== "discussion") throw new Error("请在项目讨论里准备派工");
+    if (this.busy.has(a.id)) throw new Error("讨论 Agent 正在作答，请在本轮结束后准备派工");
+    return this.once(id, ["prepare-handoff", a.id, text], () => this.handoff(a, text, id, true));
+  }
+  async handoff(a: Agent, text: string, id: string, preview = false) {
     if (this.preparing.has(a.id))
       throw new Error("总管正在交接这场讨论，请勿重复开工");
     this.preparing.add(a.id);
     try {
-      return await this.prepare(a, text, id);
+      return await this.prepare(a, text, id, preview);
     } finally {
       this.preparing.delete(a.id);
     }
   }
-  private async prepare(a: Agent, text: string, id: string) {
-    if (a.kind !== "discussion" || !startIntent(text))
+  private async prepare(a: Agent, text: string, id: string, preview: boolean) {
+    if (a.kind !== "discussion" || (!preview && !startIntent(text)))
       throw new Error("需要明确的开工指令");
     this.hub.project(a.projectId);
     const history = this.lines(a.id).filter(
       (x) =>
         !(x.id === "user:" + id && x.label === "开工指令") &&
+        (!preview || x.label !== "开工指令") &&
         x.status !== "failed" &&
         (x.kind === "user" || x.kind === "assistant"),
     );
-    if (!history.some((x) => x.label !== "开工指令"))
+    if (!preview && !history.some((x) => x.label !== "开工指令"))
       throw new Error("这场讨论还没有内容。先说具体目标，再交给执行 Agent。");
     const rules = this.hub.rules(a.projectId);
     const decisions = rules
       .slice(-12)
       .map((x) => x.text.slice(0, 1200));
     const contextHistory = currentPromptHistory(this.store, history);
-    if (!contextHistory.some((entry) => entry.label !== "开工指令") && !decisions.length)
+    if (!preview && !contextHistory.some((entry) => entry.label !== "开工指令") && !decisions.length)
       throw new Error("这场讨论没有可交接的内容，请补充本次目标");
     const bridge = {
       agentId: a.id,
@@ -1032,7 +1039,7 @@ export class AgentDesk {
           id: x.id, role: x.kind, text: x.text.slice(0, 2000), ruleInputs: x.ruleInputs,
         })),
     };
-    const last = history.filter((x) => x.label !== "开工指令").at(-1)!,
+    const through = history.filter((x) => x.label !== "开工指令").at(-1)?.id,
       prev = this.store.get("agent-handoff", a.id);
     const waiting = this.store
       .all("agent-launch")
@@ -1040,16 +1047,17 @@ export class AgentDesk {
         (r) =>
           r.state === "pending" &&
           r.data.delegation?.parent === a.id &&
-          r.data.delegation.through === last.id &&
+          r.data.delegation.through === through &&
+          Boolean(r.data.delegation.preview) === preview &&
           r.data.delegation.bridge?.ruleVersion === bridge.ruleVersion &&
           r.data.delegation.bridge?.authorization === bridge.authorization,
       );
     if (waiting) return { saved: true, launchId: waiting.id };
     if (
-      prev?.through === last.id &&
+      prev && prev.through === through &&
       prev?.authorization === bridge.authorization
     ) {
-      line(
+      if (!preview) line(
         this.store,
         a.id,
         "system",
@@ -1072,7 +1080,7 @@ export class AgentDesk {
             .join("\n"),
         ));
     const rootId = "handoff-trace:" + id;
-    if (!this.store.get("agent-line", "user:" + id))
+    if (!preview && !this.store.get("agent-line", "user:" + id))
       line(this.store, a.id, "user", "开工指令", text, { id: "user:" + id });
     this.note("总管正在整理讨论交接 · " + a.title, a, rootId);
     const trace = workTrace(this.store, () => this.hub.changed(), {
@@ -1098,6 +1106,7 @@ export class AgentDesk {
             this.hub.settings(),
             JSON.stringify({ ...bridge, decisions }),
             trace.reporter(),
+            preview,
           ),
         (v) => (v.ready ? "已整理目标与验收条件。" : "需要澄清本次交付范围。"),
       )
@@ -1107,8 +1116,12 @@ export class AgentDesk {
       });
     if (bridge.ruleVersion !== this.hub.ruleVersion(a.projectId))
       throw new Error("适用规则已更新，请重新整理讨论交接");
-    if (!plan.ready || !plan.goal.trim()) {
-      const q = plan.question || "本次具体要交付哪一项？";
+    if (!plan.ready || !plan.goal.trim() || (preview && !plan.acceptance.trim())) {
+      const q = redact(plan.question) || (plan.goal.trim() ? "怎样算这项工作完成？" : "本次具体要交付哪一项？");
+      if (preview) {
+        trace.add("finding", "尚待明确", q);
+        return { saved: true, needsInput: true, question: q };
+      }
       this.store.put("agent-pending-handoff", {
         id: a.id,
         authorization: bridge.authorization,
@@ -1131,26 +1144,29 @@ export class AgentDesk {
       ].join("\n"),
     );
     const mode = readOnly ? "read" : plan.mode;
-    const staged = await this.hub.launchExecutor(
-      "handoff:" + id,
-      TaskInput.parse({
-        projectId: a.projectId,
-        title: a.title,
-        goal: redact(plan.goal),
-        mode,
-        ...(mode === "read" ? { advance: "single" } : {}),
-        constraints:
-          redact(plan.constraints) +
-          "\n仅执行本项目已确认的目标，不发布。以交接材料中本次开工原话为准。",
-        acceptance: redact(plan.acceptance),
-      }),
-      {
-        parent: a.id,
-        bridge: { ...bridge, requestId: id },
-        through: last.id,
-      },
-    );
-    this.store.remove("agent-pending-handoff", a.id);
+    const value = TaskInput.parse({
+      projectId: a.projectId,
+      title: a.title,
+      goal: redact(plan.goal),
+      mode,
+      ...(preview || mode === "read" ? { advance: "single" } : {}),
+      ...(preview ? { access: "project" } : {}),
+      constraints:
+        redact(plan.constraints) +
+        (preview ? "\n仅执行本项目确认卡上的目标，不发布。" : "\n仅执行本项目已确认的目标，不发布。以交接材料中本次开工原话为准。"),
+      acceptance: redact(plan.acceptance),
+    });
+    const delegation = {
+      parent: a.id,
+      bridge: { ...bridge, requestId: id },
+      through,
+      ...(preview ? { preview: true as const } : {}),
+    };
+    if (preview) this.hub.launches.checkDiscussionHandoff(delegation);
+    const staged = preview
+      ? this.hub.launches.propose("handoff:" + id, { kind: "executor", value, delegation })
+      : await this.hub.launchExecutor("handoff:" + id, value, delegation);
+    if (!preview) this.store.remove("agent-pending-handoff", a.id);
     const waitingForModel = "launchId" in staged;
     trace.add(
       "finding",

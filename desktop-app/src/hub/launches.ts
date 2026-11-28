@@ -11,7 +11,7 @@ import type { Hub } from "./service";
 import { stamp } from "./store";
 import { workerId } from "./agent-ledger";
 import { redact, hash } from "./security";
-export type Delegation = { parent: string; bridge: any; through: string };
+export type Delegation = { parent: string; bridge: any; through?: string; preview?: true };
 type Data =
   | {
       kind: "discussion";
@@ -96,6 +96,14 @@ export class Launches {
           ? "never"
           : cfg.toolApproval,
       createdAt: stamp(),
+      ...(data.kind === "executor" && data.delegation?.preview ? {
+        handoff: {
+          request: data.delegation.bridge.authorization,
+          constraints: data.value.constraints,
+          acceptance: data.value.acceptance,
+          discussion: data.delegation.bridge.discussion,
+        },
+      } : {}),
     };
     const parentTask =
       parent !== CHIEF ? this.h.desk.agent(parent).taskId : undefined;
@@ -139,7 +147,7 @@ export class Launches {
       .filter(
         (line) =>
           (line.kind === "user" || line.kind === "assistant") &&
-          line.label !== "开工指令",
+          line.label !== "开工指令" && line.status !== "failed",
       )
       .at(-1);
     if (newest?.id !== delegation.through)
