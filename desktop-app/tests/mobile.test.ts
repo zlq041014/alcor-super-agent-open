@@ -547,6 +547,8 @@ test("手机新建托管工作按所选 Codex 或 DSH 入账，排队不冒充�
   hub.tick = async () => {};
   const desk = new MobileDesk(hub, 0, true);
   try {
+    const profiles = { codex: { model: "codex-fixture", effort: "low" }, dsh: { model: "dsh-fixture", effort: "default" } } as const;
+    hub.store.put("settings", { id: "global", value: { ...hub.settings(), executorProfiles: profiles } });
     const project = await hub.request({ op: "project.add", path: workspace, name: "手机新建工作验证" });
     const secondProject = await hub.request({ op: "project.add", path: secondWorkspace, name: "独立项目" });
     const challenge = await mobileInvite(desk, project.id, secondProject.id);
@@ -591,6 +593,7 @@ test("手机新建托管工作按所选 Codex 或 DSH 入账，排队不冒充�
       assert.equal(accepted.value.materialCount, count);
       assert.equal(accepted.value.materialInputs, undefined);
       const task = await until(async () => hub.store.all<Task>("task").find((t) => t.goal === value.goal));
+      assert.deepEqual(hub.profile("exec:" + task.id), profiles[target.backend]);
       assert.equal((await submit(phone, { materials: refs })).value.stage, "queued");
       const attachments = task.attachments.map((id) => hub.store.get<Artifact>("artifact", id)!);
       assert.deepEqual(attachments.map((a) => [a.name, a.kind]), [

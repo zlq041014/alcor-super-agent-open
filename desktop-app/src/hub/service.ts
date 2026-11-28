@@ -27,6 +27,8 @@ import {
   DshUsageSchema,
   type ModelProfile,
   type ModelEntry,
+  ProfileSchema,
+  executorProfile,
   type Agent,
   type AgentLine,
   APP_VERSION,
@@ -62,6 +64,7 @@ import { backupFiles, readBackupManifest } from "./backup-files";
 import { Vault, hash, redact, within, fileInfo } from "./security";
 import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import { manualAcceptances, readManualAcceptance } from "./manual-acceptance";
+import { ExecutorCatalog } from "./executor-catalog";
 import { Roster } from "./roster";
 import { Reuse } from "./reuse";
 import { Brain, ModelOutputError } from "./brain";
@@ -196,6 +199,7 @@ export class Hub extends EventEmitter {
   private schedulePass = false;
   desk = new AgentDesk(this);
   launches = new Launches(this);
+  executorCatalog = new ExecutorCatalog(() => this.changed());
   reuse = new Reuse(this);
   get roster() { return new Roster(this.store); }
   rosterExecutor(id: string, revision?: number) {
@@ -250,6 +254,7 @@ export class Hub extends EventEmitter {
     });
     codex.on("disconnect", () => {
       this.status = { ...this.status, status: "已断开" };
+      this.executorCatalog.clear("codex");
       this.markUnknown("codex");
       this.changed();
     });
@@ -273,26 +278,25 @@ export class Hub extends EventEmitter {
     profile: ModelProfile,
     backend: ExecutorBackend = this.settings().executorBackend,
   ) {
-    if (backend === "dsh") return; // The live ACP session must confirm the exact model and effort.
-    const m = this.store
-      .get("native-models", "global")
-      ?.entries?.find((m: ModelEntry) => m.id === profile.model) as
-      | ModelEntry
-      | undefined;
+    const catalog = this.executorCatalog.current(backend);
+    const m = catalog.entries.find(m => m.id === profile.model);
+    const saved = this.settings().executorProfiles?.[backend];
+    if (saved?.model === profile.model && !m && catalog.state !== "unread")
+      throw new Error("已保存的执行模型当前不可用，请重新读取目录并选择");
     if (
       profile.effort !== "default" &&
       m?.efforts.length &&
       !m.efforts.includes(profile.effort)
     )
       throw new Error(
-        "此 Codex 模型未提供 " +
+        "此执行模型未提供 " +
           profile.effort +
           " 强度，可选：" +
           m.efforts.join("、"),
       );
   }
   async modelCatalog(backend: "api" | ExecutorBackend): Promise<ModelEntry[]> {
-    if (backend !== "codex") {
+    if (backend === "api") {
       const cfg = this.settings(),
         ids = await this.brain.models(cfg);
       if (!this.sameApi(cfg)) throw new Error("API 配置已更换，请重新读取目录");
@@ -305,7 +309,25 @@ export class Hub extends EventEmitter {
       this.changed();
       return ids.map((id) => ({ id, efforts: [] }));
     }
+    const catalog = await this.refreshExecutorModels(backend);
+    if (catalog.state === "unavailable") throw new Error(catalog.issue ?? "执行端模型目录不可读");
+    if (catalog.state === "unread") throw new Error("执行端连接已变化，请重新读取");
+    return catalog.entries;
+  }
+
+  refreshExecutorModels(backend: ExecutorBackend) {
+    return this.executorCatalog.refresh(backend, async () => {
+      const cfg = this.settings();
+      if (backend === "codex") return this.readCodexModels();
+      const list = await this.dsh.models(cfg);
+      if (cfg.dshPath !== this.settings().dshPath || !this.sameApi(cfg)) throw new Error("DSH 连接已变化，请重新读取");
+      return list;
+    });
+  }
+
+  private async readCodexModels(): Promise<ModelEntry[]> {
     await this.ensureCodex();
+    if (this.status.status === "需要登录") throw new Error("Codex 尚未登录");
     const entries = new Map<string, ModelEntry>(),
       seen = new Set<string>();
     let cursor: string | undefined;
@@ -318,28 +340,24 @@ export class Hub extends EventEmitter {
       if (!Array.isArray(page.data))
         throw new Error("Codex 未返回有效的模型目录");
       for (const m of page.data) {
+        if (m == null || typeof m !== "object") continue;
         const id = m.model || m.id;
-        if (typeof id !== "string" || m.hidden) continue;
+        if (!ProfileSchema.shape.model.safeParse(id).success || m.hidden) continue;
         entries.set(id, {
           id,
-          efforts: (m.supportedReasoningEfforts || [])
-            .map((x: any) => x.reasoningEffort)
+          efforts: (Array.isArray(m.supportedReasoningEfforts) ? m.supportedReasoningEfforts : [])
+            .map((x: any) => x?.reasoningEffort)
             .filter((e: any) => EffortSchema.safeParse(e).success),
         });
       }
+      if (page.nextCursor != null && typeof page.nextCursor !== "string") throw new Error("Codex 模型目录分页回执无效");
       cursor = page.nextCursor;
       if (cursor && seen.has(cursor))
         throw new Error("Codex 模型目录分页未完成");
       if (cursor) seen.add(cursor);
     } while (cursor && entries.size < 1000 && seen.size < 30);
-    const list = [...entries.values()];
-    this.store.put("native-models", {
-      id: "global",
-      entries: list,
-      checkedAt: stamp(),
-    });
-    this.changed();
-    return list;
+    if (cursor) throw new Error("Codex 模型目录分页未完成");
+    return [...entries.values()];
   }
   changed() {
     this.emit("change");
@@ -471,7 +489,8 @@ export class Hub extends EventEmitter {
     return {
       settings: this.settings(),
       launches: this.launches.pending(),
-      nativeModels: this.store.get("native-models", "global")?.entries || [],
+      nativeModels: this.executorCatalog.current("codex").entries,
+      executorModels: { codex: this.executorCatalog.current("codex"), dsh: this.executorCatalog.current("dsh") },
       projects: this.store.all("project"),
       catalog: this.projectCatalog(),
       projectRoots: projectRoots(this.store),
@@ -706,6 +725,21 @@ export class Hub extends EventEmitter {
     switch (r.op) {
       case "agent.models":
         return this.modelCatalog(r.backend);
+      case "executor.models": return this.refreshExecutorModels(r.backend);
+      case "executor.modelDefault": {
+        const directory = this.executorCatalog.current(r.backend);
+        const model = directory.entries.find(m => m.id === r.profile.model);
+        if (directory.state !== "available" || directory.catalogVersion !== r.catalogVersion || !model)
+          throw new Error("模型目录已变化，请重新读取后选择");
+        if (r.profile.effort !== "default" && !model.efforts.includes(r.profile.effort))
+          throw new Error("此目录未确认该思考强度，请选后端默认或已报告的值");
+        this.checkProfile(r.profile, r.backend);
+        const cfg = this.settings();
+        this.store.put("settings", { id: "global", value: { ...cfg, executorBackend: r.backend, revision: cfg.revision + 1,
+          executorProfiles: { ...cfg.executorProfiles, [r.backend]: r.profile } } });
+        this.changed();
+        return true;
+      }
       case "agent.launch.cancel":
         return this.launches.cancel(r.id);
       case "agent.launch.confirm":
@@ -879,6 +913,8 @@ export class Hub extends EventEmitter {
           throw new Error("仍有活动或未知执行，暂不能更换 Codex 程序或凭据");
         if (nativeChanged && this.codex.initialized) await this.codex.stop();
         const changedEndpoint = !this.sameApi(r.value);
+        if (nativeChanged) this.executorCatalog.clear("codex");
+        if (changedEndpoint || r.value.dshPath !== this.settings().dshPath) this.executorCatalog.clear("dsh");
         const changedModel =
           r.value.model !== this.settings().model ||
           r.value.reasoningEffort !== this.settings().reasoningEffort;
@@ -886,7 +922,9 @@ export class Hub extends EventEmitter {
           this.dsh.status = { status: "未检测", version: undefined };
         this.store.put("settings", {
           id: "global",
-          value: { ...r.value, revision: this.settings().revision + 1 },
+          value: { ...r.value, executorProfiles: this.settings().executorProfiles,
+            executorBackend: this.settings().executorProfiles && r.value.revision !== this.settings().revision
+              ? this.settings().executorBackend : r.value.executorBackend, revision: this.settings().revision + 1 },
         });
         if (changedEndpoint)
           this.store.put("models", { id: "global", ids: [] });
@@ -1948,7 +1986,7 @@ export class Hub extends EventEmitter {
         value,
         "loop:" + requestId,
         delegation,
-        defaultProfile(cfg),
+        executorProfile(cfg, "dsh"),
         "never",
         "dsh",
         prepared,
@@ -1961,12 +1999,13 @@ export class Hub extends EventEmitter {
     value: any,
     requestId: string,
     delegation?: Delegation,
-    profile: ModelProfile = defaultProfile(this.settings()),
+    profile: ModelProfile | undefined = undefined,
     approval = this.settings().toolApproval,
     backend: ExecutorBackend = this.settings().executorBackend,
     loop?: PreparedLoop,
     graph?: GraphPreparation,
   ) {
+    profile ??= executorProfile(this.settings(), backend);
     this.assertDispatchAvailable();
     this.project(value.projectId);
     const digest = loop?.requestHash ?? hash(JSON.stringify([value, profile]));
@@ -4210,7 +4249,11 @@ export class Hub extends EventEmitter {
     const operation = this.restoreArchive(source);
     this.restoration = operation;
     try {
-      return await operation;
+      const result = await operation;
+      this.executorCatalog.clear("codex");
+      this.executorCatalog.clear("dsh");
+      this.changed();
+      return result;
     } finally {
       this.restoration = undefined;
     }

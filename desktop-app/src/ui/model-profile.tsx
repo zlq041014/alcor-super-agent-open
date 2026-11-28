@@ -34,26 +34,22 @@ export function ProfilePicker({
   useEffect(() => {
     setFresh(undefined);
     setMsg("");
-  }, [backend, s.settings.apiSource, target.endpoint, target.protocol]);
+  }, [backend, s.settings.apiSource, target.endpoint, target.protocol, s.settings.dshPath, s.settings.codexPath, s.settings.codexCredentialEnv]);
   const entries =
-    fresh ||
-    (backend === "codex"
-      ? s.nativeModels
-      : s.models.ids.map((id) => ({ id, efforts: [] })));
+    backend === "api" ? fresh ?? s.models.ids.map(id => ({ id, efforts: [] })) : s.executorModels?.[backend]?.entries ?? [];
   const ids = [
     ...new Set(
       [
         value.model,
-        CHIEF_MODEL,
-        MEMBER_MODEL,
+        ...(backend === "api" ? [CHIEF_MODEL, MEMBER_MODEL] : []),
         ...entries.map((m) => m.id),
       ].filter(Boolean),
     ),
   ];
   const caps = entries.find((m) => m.id === value.model)?.efforts || [],
     available = caps.length
-      ? ["default", ...caps]
-      : backend !== "codex" && s.settings.apiSource === "deepseek"
+      ? [...new Set(["default", ...caps])]
+      : backend === "api" && s.settings.apiSource === "deepseek"
         ? ["default", "none", "low", "high", "max"]
         : EffortSchema.options;
   const unsupported = !available.includes(value.effort);
@@ -143,7 +139,7 @@ export function ProfilePicker({
                 op: "agent.models",
                 backend,
               });
-              setFresh(models);
+              if (backend === "api") setFresh(models);
               setMsg("已读取 " + models.length + " 个模型");
             } catch (e) {
               setMsg((e as Error).message);

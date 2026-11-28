@@ -5,7 +5,8 @@ import { dshReceipt } from "../adapter/dsh-receipt";
 import type { WorkspaceOptions } from "../adapter/dsh-files";
 import {
   apiTarget,
-  defaultProfile,
+  executorProfile,
+  ProfileSchema,
   type Command,
   type Run,
   type Settings,
@@ -36,6 +37,17 @@ export class DshWork {
   private home(run: Run) {
     return join(this.hub.dir, "dsh", hash(run.graphAttempt ? run.id : run.taskId));
   }
+  async models(cfg: Settings) {
+    const candidates = [...new Set(await this.hub.brain.models(cfg))]
+      .filter(id => ProfileSchema.shape.model.safeParse(id).success);
+    if (!candidates.length) return [];
+    const preferred = executorProfile(cfg, "dsh").model;
+    const dir = join(this.hub.dir, "dsh", "catalog");
+    const session = await openDsh({ cfg, dir, cwd: dir, write: false,
+      profile: { model: candidates.includes(preferred) ? preferred : candidates[0], effort: "default" }, catalogCandidates: candidates });
+    try { return session.models ?? []; }
+    finally { session.close(); }
+  }
   async probe() {
     const cfg = this.hub.settings(),
       dir = join(this.hub.dir, "dsh", "probe");
@@ -45,7 +57,7 @@ export class DshWork {
         dir,
         cwd: dir,
         write: false,
-        profile: defaultProfile(cfg),
+        profile: executorProfile(cfg, "dsh"),
       });
       try {
         this.status = { status: "ACP 就绪", version: s.version };

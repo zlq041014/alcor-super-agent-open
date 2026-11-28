@@ -72,6 +72,13 @@ export interface ModelEntry {
   id: string;
   efforts: Effort[];
 }
+export interface ExecutorModels {
+  state: "unread" | "available" | "empty" | "unavailable";
+  entries: ModelEntry[];
+  checkedAt?: string;
+  catalogVersion?: string;
+  issue?: string;
+}
 export const SettingsSchema = z
   .object({
     apiSource: z.enum(["custom", "deepseek"]).default("custom"),
@@ -83,6 +90,7 @@ export const SettingsSchema = z
     memberEffort: EffortSchema.default("max"),
     profileVersion: z.literal(2).default(2),
     executorBackend: z.enum(["dsh", "codex"]).default("dsh"),
+    executorProfiles: z.object({ codex: ProfileSchema.optional(), dsh: ProfileSchema.optional() }).strict().optional(),
     dshPath: z.string().max(1000).default(""),
     dshDesktopUrl: z.string().trim().max(500).default(""),
     toolApproval: z.enum(["never", "on-request"]).default("never"),
@@ -146,6 +154,9 @@ export function defaultProfile(
     model: chief ? settings.model : settings.codexModel,
     effort: chief ? settings.reasoningEffort : settings.memberEffort,
   };
+}
+export function executorProfile(settings: Settings, backend: ExecutorBackend): ModelProfile {
+  return settings.executorProfiles?.[backend] ?? defaultProfile(settings);
 }
 export type TaskState =
   | "draft"
@@ -522,6 +533,7 @@ export interface Snapshot {
   learnedChecks: import("./loop-contracts").LearnedCheckEntry[];
   launches: LaunchCard[];
   nativeModels: ModelEntry[];
+  executorModels: Record<ExecutorBackend, ExecutorModels>;
   settings: Settings;
   projects: Project[];
   catalog: ProjectCatalog;
@@ -654,6 +666,9 @@ export function taskAdvance(
   return advance;
 }
 export const Request = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("executor.models"), backend: z.enum(["codex", "dsh"]) }).strict(),
+  z.object({ op: z.literal("executor.modelDefault"), backend: z.enum(["codex", "dsh"]), profile: ProfileSchema,
+    catalogVersion: z.string().uuid() }).strict(),
   z.object({ op: z.literal("acceptance.read"), id }).strict(),
   z.object({ op: z.literal("reuse.publish"), id: z.string().uuid().optional(), revision: z.number().int().positive().optional(), taskId: id, runId: id,
     title: z.string().trim().min(1).max(100), condition: z.string().trim().min(1).max(1000), excerpt: z.string().trim().min(1).max(6000),

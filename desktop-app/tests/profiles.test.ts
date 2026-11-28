@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { Hub } from "../src/hub/service";
 import { Brain } from "../src/hub/brain";
 import { Vault } from "../src/hub/security";
+import { dshCatalogOptions } from "../src/adapter/dsh";
 import {
   CHIEF,
   CHIEF_MODEL,
@@ -96,6 +97,66 @@ async function finish(h: Hub, r: Run) {
     },
   });
 }
+
+test("executor catalogs separate equal IDs, atomically save the default source, and discard old responses", async () => {
+  const { h, n, p } = await fixture();
+  try {
+    h.dsh.models = async () => [{ id: "limited", efforts: ["none", "high"] }, { id: "dsh-only", efforts: [] }];
+    let downstreamApi = 0;
+    h.brain.models = async () => { downstreamApi++; return ["api-only"]; };
+    const from = (backend: "codex" | "dsh") => h.request({ op: "executor.models", backend });
+    const [codex, dsh] = await Promise.all([from("codex"), from("dsh")]);
+    assert.deepEqual(codex.entries, [{ id: "limited", efforts: ["low"] }]);
+    assert.deepEqual(dsh.entries, [{ id: "limited", efforts: ["none", "high"] }, { id: "dsh-only", efforts: [] }]);
+    assert.equal(downstreamApi, 0);
+    const original = h.settings();
+    const save = (backend: string, catalogVersion: string, effort: string) => h.request({ op: "executor.modelDefault", backend, catalogVersion,
+      profile: { model: "limited", effort } });
+    await assert.rejects(save("codex", dsh.catalogVersion, "low"), /目录已变化/);
+    await assert.rejects(save("dsh", dsh.catalogVersion, "low"), /目录未确认/);
+    await save("dsh", dsh.catalogVersion, "high");
+    await h.request({ op: "settings", value: { ...original, theme: "dark" } });
+    assert.equal(h.settings().executorBackend, "dsh");
+    assert.equal(h.settings().executorProfiles?.dsh?.model, "limited");
+    assert.equal(h.settings().model, original.model);
+    assert.equal(h.settings().theme, "dark");
+    await save("codex", codex.catalogVersion, "low");
+    assert.equal(h.settings().executorBackend, "codex");
+    assert.equal(h.settings().executorProfiles?.dsh?.effort, "high");
+    const proposed = await h.request({ op: "task.create", requestId: "selected-default-source", value: {
+      projectId: p.id, goal: "核对下次采用的执行路线", advance: "single", mode: "read",
+    } });
+    const card = h.launches.pending().find(value => value.id === proposed.launchId);
+    assert.equal(card?.backend, "codex");
+    assert.deepEqual(card?.profile, { model: "limited", effort: "low" });
+    n.emit("disconnect");
+    assert.equal((await h.snapshot()).executorModels.codex.state, "unread");
+    await assert.rejects(save("codex", codex.catalogVersion, "low"), /目录已变化/);
+    let release!: (rows: typeof dsh.entries) => void;
+    h.dsh.models = async () => new Promise(resolve => { release = resolve; });
+    const inFlight = from("dsh");
+    while (!release) await Promise.resolve();
+    await h.request({ op: "settings", value: { ...h.settings(), dshPath: "different.exe" } });
+    release(dsh.entries);
+    assert.equal((await inFlight).state, "unread");
+    h.dsh.models = async () => { throw new Error("DSH 连接不可用"); };
+    assert.deepEqual((await from("dsh")).entries, []);
+    assert.equal((await h.snapshot()).executorModels.dsh.state, "unavailable");
+    assert.ok(!n.calls.some(c => c.method === "turn/start"));
+  } finally { h.shuttingDown = true; h.store.close(); }
+});
+
+test("DSH ACP catalog only projects advertised managed provider values and reported effort levels", () => {
+  const choice = (provider: string, id: string) => ({ value: JSON.stringify([provider, id]), name: id });
+  const options = [{ id: "model", type: "select", currentValue: choice("alcor-api", "same").value, options: [
+    { group: "unrelated", options: [choice("unrelated", "same"), choice("unrelated", "other")] },
+    { group: "alcor-api", options: [choice("alcor-api", "same"), choice("alcor-api", "next"), choice("alcor-api", "gone"), { value: "broken" }] },
+  ] }, { id: "reasoning_effort", options: [{ value: "off" }, { value: "high" }, { value: "invented" }] }];
+  assert.deepEqual(dshCatalogOptions(options, ["same", "next", "not-reported"]), [
+    { id: "same", efforts: ["none", "high"] }, { id: "next", efforts: [] },
+  ]);
+  assert.deepEqual(dshCatalogOptions([], ["same"]), []);
+});
 test("legacy built-in defaults migrate without resetting explicit newer choices; both API protocols carry the selected effort", async () => {
   assert.deepEqual(
     defaultProfile(

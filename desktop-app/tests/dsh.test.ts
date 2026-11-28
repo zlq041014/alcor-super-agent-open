@@ -143,6 +143,7 @@ test(
           body,
           redirect: init.redirect,
         });
+        if (url.endsWith("/responses")) return Response.json({ model: body.model, status: "completed", output_text: "ok" });
         return Response.json({
           model: body.model,
           choices: [
@@ -151,9 +152,9 @@ test(
                 content: "ok",
                 reasoning_content: "PRIVATE-PLACEHOLDER",
               },
+              finish_reason: "stop",
             },
           ],
-          output_text: "ok",
         });
       },
     );

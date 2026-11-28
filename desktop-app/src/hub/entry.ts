@@ -86,8 +86,13 @@ function start(dir: string) {
                 ? new Vault(dir, "codex-native.dpapi")
                 : hub.brain.vaultFor(cfg)
             ).save(raw.endpoint, raw.key);
-            if (raw.native) hub.store.remove("native-models", "global");
-            else hub.store.remove("models", "global");
+            if (raw.native) {
+              hub.store.remove("native-models", "global");
+              hub.executorCatalog.clear("codex");
+            } else {
+              hub.store.remove("models", "global");
+              hub.executorCatalog.clear("dsh");
+            }
             value = true;
             break;
           }

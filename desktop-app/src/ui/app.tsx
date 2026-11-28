@@ -74,6 +74,7 @@ import {
 } from "../shared/contracts";
 import { AgentTree, AgentWorkspace, stateOf } from "./agents";
 import { AgentRoster } from "./agent-roster";
+import { ExecutorDefaults } from "./executor-defaults";
 import { AcceptanceHistory } from "./acceptance-history";
 import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import { MobileDelivery } from "./mobile-delivery";
@@ -1906,7 +1907,7 @@ function App() {
               </div>
             )}
             {view === "settings" && (
-              <SettingsPage snapshot={s} notify={notify} run={run} />
+              <SettingsPage snapshot={s} notify={notify} run={run} refresh={refresh} />
             )}
           </main>
           {panel && (
@@ -3671,8 +3672,10 @@ function SettingsPage({
   snapshot: s,
   notify,
   run,
+  refresh,
 }: {
   snapshot: Snapshot;
+  refresh: () => Promise<void>;
   notify: (s: string) => void;
   run: (fn: () => Promise<any>) => Promise<any>;
 }) {
@@ -3719,6 +3722,12 @@ function SettingsPage({
           </button>
         }
       />
+      <section className="settings-section" aria-label="执行模型目录">
+        <ExecutorDefaults settings={s.settings} catalogs={s.executorModels}
+          blocked={{ codex: cfg.codexPath !== s.settings.codexPath || cfg.codexCredentialEnv !== s.settings.codexCredentialEnv,
+            dsh: cfg.dshPath !== s.settings.dshPath || !sameTarget }} request={api.request}
+          refresh={refresh} saving={() => {}} saved={source => { set("executorBackend", source); notify("新工作的默认执行模型已保存"); }} />
+      </section>
       <section className="settings-section">
         <div className="section-title">
           <Sparkles size={20} />

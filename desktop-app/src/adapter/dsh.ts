@@ -9,6 +9,9 @@ import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
 import {
   apiTarget,
+  EffortSchema,
+  ProfileSchema,
+  type ModelEntry,
   type ModelProfile,
   type Settings,
 } from "../shared/contracts";
@@ -88,15 +91,11 @@ export async function dshInstallation(configured: string) {
 export const dshModelInput = (cfg: Settings, profile: ModelProfile) =>
   cfg.apiSource === "custom" && profile.model === "deepseek-flash" ? ["text", "image"] : ["text"];
 
-function overlay(endpoint: string, cfg: Settings, profile: ModelProfile, nativeTools: boolean) {
+function overlay(endpoint: string, cfg: Settings, profile: ModelProfile, nativeTools: boolean, candidates = [profile.model]) {
   const choice = { provider, model: profile.model };
   const responses = apiTarget(cfg).protocol === "responses";
-  const efforts =
-    cfg.apiSource === "deepseek"
-      ? ["low", "high", "max"]
-      : profile.model.startsWith("deepseek-")
-        ? ["low", "medium", "high", "max"]
-        : ["minimal", "low", "medium", "high", "xhigh", "max"];
+  const efforts = (model: string) => cfg.apiSource === "deepseek" ? ["low", "high", "max"] : model.startsWith("deepseek-")
+    ? ["low", "medium", "high", "max"] : ["minimal", "low", "medium", "high", "xhigh", "max"];
   return JSON.stringify([
     { id: "agent-default-model", config: choice },
     { id: "acp", config: choice },
@@ -109,17 +108,15 @@ function overlay(endpoint: string, cfg: Settings, profile: ModelProfile, nativeT
             api: responses ? "openai-responses" : "openai-completions",
             baseURL: endpoint,
             displayName: "Alcor API",
-            models: [
-              {
-                id: profile.model,
-                name: profile.model,
-                input: dshModelInput(cfg, profile),
+            models: candidates.map(model => ({
+                id: model,
+                name: model,
+                input: dshModelInput(cfg, { ...profile, model }),
                 reasoningEfforts: {
                   off: null,
-                  ...Object.fromEntries(efforts.map((e) => [e, e])),
+                  ...Object.fromEntries(efforts(model).map((e) => [e, e])),
                 },
-              },
-            ],
+            })),
             ...(!responses
               ? {
                   compat: {
@@ -164,6 +161,30 @@ function overlay(endpoint: string, cfg: Settings, profile: ModelProfile, nativeT
       "llm-deepseek-account",
     ].map((id) => ({ id, disabled: true })),
   ]);
+}
+
+export function dshCatalogOptions(options: unknown, candidates: string[]): ModelEntry[] {
+  if (!Array.isArray(options)) return [];
+  const model = options.find(row => row?.id === "model" && row.type === "select");
+  const groups: { group?: string; options?: unknown }[] = Array.isArray(model?.options) ? model.options : [];
+  const group = groups.find(row => row?.group === provider);
+  const allowed = new Set(candidates), entries = new Map<string, ModelEntry>();
+  for (const choice of Array.isArray(group?.options) ? group.options : []) {
+    if (typeof choice?.value !== "string") continue;
+    let value: unknown;
+    try { value = JSON.parse(choice.value); } catch { continue; }
+    if (!Array.isArray(value) || value.length !== 2 || value[0] !== provider || !allowed.has(value[1]) ||
+        !ProfileSchema.shape.model.safeParse(value[1]).success) continue;
+    const selected = choice.value === model.currentValue;
+    const levels = selected ? options.find(row => row?.id === "reasoning_effort")?.options : undefined;
+    const efforts: ModelEntry["efforts"] = [];
+    for (const level of Array.isArray(levels) ? levels : []) {
+      const effort = EffortSchema.safeParse(level?.value === "off" ? "none" : level?.value === "" ? "default" : level?.value);
+      if (effort.success && !efforts.includes(effort.data)) efforts.push(effort.data);
+    }
+    entries.set(value[1], { id: value[1], efforts });
+  }
+  return [...entries.values()];
 }
 
 // A separate ACP process per run keeps sessions, requests, credentials and cancellations local.
@@ -275,9 +296,12 @@ export async function openDsh(
     native?: boolean;
     nativeGraph?: boolean;
     taskBudget?: boolean;
+    catalogCandidates?: string[];
   } & WorkspaceOptions,
 ) {
   const { cfg, profile, dir, cwd } = options;
+  if (options.catalogCandidates && (options.key || options.write || options.resume || options.native || options.nativeGraph))
+    throw new Error("DSH 模型目录只从隔离只读会话读取");
   const install = await dshInstallation(cfg.dshPath);
   await mkdir(dir, { recursive: true });
   const patch = join(dir, randomUUID() + ".patch.yml");
@@ -296,7 +320,7 @@ export async function openDsh(
     await writeFile(
       patch,
       overlay(route?.endpoint || "http://127.0.0.1:1/v1", cfg, profile,
-        options.native === true || options.nativeGraph === true),
+        options.native === true || options.nativeGraph === true, options.catalogCandidates),
       { flag: "wx" },
     );
     acp = new Acp(
@@ -316,7 +340,8 @@ export async function openDsh(
               : options.write
                 ? "workspace-write"
                 : "read-only",
-            ...(route ? { ALCOR_DSH_ROUTE_TOKEN: route.token } : {}),
+            ...(route ? { ALCOR_DSH_ROUTE_TOKEN: route.token }
+              : options.catalogCandidates ? { ALCOR_DSH_ROUTE_TOKEN: "catalog-read-only" } : {}),
           },
         },
       ),
@@ -376,6 +401,7 @@ export async function openDsh(
       id,
       version: install.version,
       effort: current(opts, "reasoning_effort") as string | undefined,
+      ...(options.catalogCandidates ? { models: dshCatalogOptions(opts, options.catalogCandidates) } : {}),
       usage: () =>
         route?.evidence.usage.requests
           ? { ...route.evidence.usage }

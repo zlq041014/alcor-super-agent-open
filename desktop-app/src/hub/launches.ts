@@ -1,6 +1,7 @@
 import {
   CHIEF,
   defaultProfile,
+  executorProfile,
   ProfileSchema,
   TaskInput,
   type LaunchCard,
@@ -64,12 +65,12 @@ export class Launches {
     const p = this.h.project(
       data.kind === "executor" ? data.value.projectId : data.projectId,
     );
-    const cfg = this.h.settings(),
-      profile = defaultProfile(cfg);
+    const cfg = this.h.settings();
     const member = data.kind === "executor" && data.value.rosterId ? this.h.rosterExecutor(data.value.rosterId) : undefined;
     const reuse = data.kind === "executor" && data.value.reuse?.length ? this.h.reuse.plan(p.id, data.value.reuse) : undefined;
     const materials = reuse && this.h.reuse.materials(p.id, reuse);
     const backend = member?.source ?? cfg.executorBackend;
+    const profile = data.kind === "executor" ? executorProfile(cfg, backend) : defaultProfile(cfg);
     const card: LaunchCard = {
       id,
       kind: data.kind,
