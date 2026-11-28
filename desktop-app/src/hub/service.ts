@@ -64,7 +64,7 @@ import { backupFiles, readBackupManifest } from "./backup-files";
 import { Vault, hash, redact, within, fileInfo } from "./security";
 import { skillCatalog } from "./reuse-skills";
 import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
-import { manualAcceptances, readManualAcceptance } from "./manual-acceptance";
+import { adoptAcceptanceDecisions, manualAcceptances, projectDecisionReviews, readManualAcceptance } from "./manual-acceptance";
 import { ExecutorCatalog } from "./executor-catalog";
 import { Roster } from "./roster";
 import { Reuse } from "./reuse";
@@ -741,6 +741,14 @@ export class Hub extends EventEmitter {
       case "agent.launch.confirm":
         return this.launches.confirm(r.id, r.profile, r.catalogVersion);
       case "acceptance.read": return readManualAcceptance(this.store, r.id);
+      case "acceptance.adoptDecisions": {
+        const accepted = adoptAcceptanceDecisions(this.store, r.id, r.references);
+        this.changed();
+        return accepted;
+      }
+      case "project.decisionReviews":
+        this.project(r.projectId);
+        return projectDecisionReviews(this.store, r.projectId);
       case "reuse.publish":
         return this.desk.once(r.requestId, r, () => this.reuse.publish(r));
       case "reuse.skillCatalog": return skillCatalog(this, r.projectId, r.backend);

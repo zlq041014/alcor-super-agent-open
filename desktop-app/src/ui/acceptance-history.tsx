@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { AcceptanceDecisions } from "./acceptance-decisions";
 import type { ManualAcceptance, ManualAcceptanceDetail, Snapshot } from "../shared/contracts";
 
 const date = (at: string) => new Date(at).toLocaleString("zh-CN");
@@ -37,6 +38,7 @@ export function AcceptanceHistory({ snapshot, request }: { snapshot: Snapshot; r
         {detail.result.diff && <details><summary>当时的差异</summary><pre className="diff">{detail.result.diff}</pre></details>}
         {detail.result.files.length > 0 && <ul aria-label="当时的产物">{detail.result.files.map(f => <li key={f.id}>{f.name}</li>)}</ul>}
         {detail.result.truncated && <p className="field-help">这里只显示原结果的部分内容。</p>}
+        <AcceptanceDecisions key={detail.id} detail={detail} request={request} changed={setDetail} />
       </> : <p>已保留验收记录，原回合或结果版本不可核对。</p>}
     </section>}
   </section>;

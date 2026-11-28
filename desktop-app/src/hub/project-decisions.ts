@@ -52,6 +52,11 @@ export const decisionHeads = (m: Memory) => m.decision?.heads ?? [m.revision];
 const versionsOf = (m: Memory) => m.decision?.versions ?? [{ revision: m.revision, text: m.text, parents: [] }];
 export const usableRule = (m: Memory) => m.enabled && !m.deleted && decisionHeads(m).length === 1;
 
+export function decisionText(rule: Memory | undefined, projectId: string, revision: number) {
+  return rule?.decision && !rule.deleted && rule.projectId === projectId
+    ? versionsOf(rule).find(version => version.revision === revision)?.text : undefined;
+}
+
 export function reviseDecision(m: Memory, text: string, parents: number[], lineId?: string): Memory {
   const revision = m.revision + 1;
   const heads = [...decisionHeads(m).filter((head) => !parents.includes(head)), revision];

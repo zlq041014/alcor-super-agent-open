@@ -520,6 +520,11 @@ export interface ManualAcceptance {
 }
 export type ManualAcceptanceDetail = ManualAcceptance & {
   result?: { response: string; diff: string; truncated: boolean; files: { id: string; name: string }[] };
+  decisions?: (RuleReference & { text: string; adopted: boolean })[];
+};
+export type DecisionReview = {
+  acceptanceId: string; taskId: string; runId: string; taskRevision: number; title: string;
+  changes: { id: string; previous: { revision: number; text: string }; current: { revision: number; text: string } }[];
 };
 export interface Snapshot {
   manualAcceptances: ManualAcceptance[];
@@ -691,6 +696,9 @@ export const Request = z.discriminatedUnion("op", [
   z.object({ op: z.literal("executor.modelDefault"), backend: z.enum(["codex", "dsh"]), profile: ProfileSchema,
     catalogVersion: z.string().uuid() }).strict(),
   z.object({ op: z.literal("acceptance.read"), id }).strict(),
+  z.object({ op: z.literal("acceptance.adoptDecisions"), id,
+    references: z.array(z.object({ id, revision: z.number().int().positive() }).strict()).min(1).max(100) }).strict(),
+  z.object({ op: z.literal("project.decisionReviews"), projectId: id }).strict(),
   z.object({ op: z.literal("reuse.publish"), id: z.string().uuid().optional(), revision: z.number().int().positive().optional(), taskId: id, runId: id,
     title: z.string().trim().min(1).max(100), condition: z.string().trim().min(1).max(1000), excerpt: z.string().trim().min(1).max(6000),
     kind: WrittenReuseKind.optional(), guidance: z.string().trim().min(1).max(6000).optional(),

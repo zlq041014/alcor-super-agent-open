@@ -82,6 +82,7 @@ import { RecordReuse, ReuseLibrary, SaveReuse } from "./reuse-items";
 import { WorkRecord, messageWork } from "./work-record";
 import { ProfilePicker, effortName, executorProfileIssue } from "./model-profile";
 import { DecisionResolution } from "./decision-resolution";
+import { ProjectDecisionReviews } from "./project-decision-reviews";
 import {
   AdvanceSelect,
   GraphDetails,
@@ -1525,6 +1526,7 @@ function App() {
                           {p.available === false ? " · 目录暂不可用" : ""}
                         </span>
                       </div>
+                        <ProjectDecisionReviews projectId={p.id} request={api.request} />
                       <div className="card-actions">
                         <button
                           disabled={p.available === false}

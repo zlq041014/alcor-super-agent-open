@@ -706,6 +706,66 @@ test("native success requires current evidence and user acceptance", async () =>
     end(f);
   }
 });
+test("only verified adoption on the current accepted delivery can suggest project review", async () => {
+  const f = await fixture();
+  try {
+    const h = f.hub;
+    let modelCalls = 0;
+    h.brain.complete = async () => { modelCalls++; return { text: "合成回复", model: "fixture", usage: null, replyState: "complete" }; };
+    const source = h.desk.open(f.p, "决定讨论样本");
+    const talk = (text: string, requestId: string) => h.request({ op: "agent.send", agentId: source.id, text, requestId, mode: "now" });
+    await talk("只用 A 稿", "adopt-source-a");
+    await talk("截止周五", "adopt-deadline");
+    const [a, deadline] = h.rules(f.p.id);
+    const summary = async (goal: string, key: string, noRefs = false) => {
+      const task = await created(f, goal, key);
+      const run = await completed(h, task, goal + "的原验收正文");
+      if (noRefs) h.store.put("run", { ...run, decisionInputs: undefined });
+      await h.request(review(h, run));
+      const row = (await h.snapshot()).manualAcceptances.find(item => item.runId === run.id)!;
+      return { task, run, row };
+    };
+    const adopted = await summary("实际采用的报名页", "adopted-delivery");
+    const selected = await summary("只收到了决定的对照", "unconfirmed-delivery");
+    const legacy = await summary("没有版本记录的旧交付", "legacy-delivery", true);
+    const read = (id: string) => h.request({ op: "acceptance.read", id });
+    const confirm = (id: string, references: { id: string; revision: number }[]) => h.request({ op: "acceptance.adoptDecisions", id, references });
+    const query = (projectId = f.p.id) => h.request({ op: "project.decisionReviews", projectId });
+    const ref = { id: a.id, revision: a.revision };
+    assert.equal((await read(adopted.row.id)).decisions.find((item: any) => item.id === a.id)?.adopted, false);
+    await assert.rejects(confirm(adopted.row.id, [{ ...ref, revision: 99 }]), /这次验收/);
+    await assert.rejects(confirm(legacy.row.id, [ref]), /原回合核对/);
+    const approved = await confirm(adopted.row.id, [ref, ref]);
+    assert.equal(approved.decisions.find((item: any) => item.id === a.id).adopted, true);
+    assert.equal(approved.decisions.find((item: any) => item.id === deadline.id).adopted, false);
+    assert.deepEqual(await confirm(adopted.row.id, [ref]), approved);
+    assert.equal(h.store.db.prepare("SELECT count(*) AS n FROM events WHERE kind='decision.adoption'").get()!.n, 1);
+    assert.deepEqual(await query(), []);
+    await talk("只用 B 稿，取代 A 稿", "adopt-source-b");
+    const anotherFolder = join(f.dir, "independent-project");
+    await mkdir(anotherFolder);
+    const other = await h.request({ op: "project.add", name: "独立项目", path: anotherFolder });
+    const state = [modelCalls, f.codex.calls.length, h.store.all("task").length, h.store.all("command").length];
+    assert.deepEqual(await query(), [{
+      acceptanceId: adopted.row.id, taskId: adopted.task.id, runId: adopted.run.id, taskRevision: adopted.task.revision,
+      title: "实际采用的报名页", changes: [{ id: a.id, previous: { revision: 1, text: "只用 A 稿" },
+        current: { revision: 2, text: "只用 B 稿" } }],
+    }]);
+    assert.deepEqual(await query(other.id), []);
+    assert.equal((await read(adopted.row.id)).result.response, "实际采用的报名页的原验收正文");
+    assert.equal((await read(selected.row.id)).decisions.find((item: any) => item.id === a.id).adopted, false);
+    assert.deepEqual([modelCalls, f.codex.calls.length, h.store.all("task").length, h.store.all("command").length], state);
+    assert.equal(h.getTask(adopted.task.id).state, "done");
+    await talk("只用 C 稿，取代 A 稿", "adopt-concurrent-c");
+    assert.deepEqual(await query(), []);
+    await h.request({ op: "decision.resolve", id: a.id, projectId: f.p.id, revision: 3, heads: [2, 3], selectedRevision: 2 });
+    assert.equal((await query())[0].changes[0].current.text, "只用 B 稿");
+    h.store.put("task", { ...h.getTask(adopted.task.id), revision: adopted.task.revision + 1 });
+    assert.deepEqual(await query(), []);
+    assert.equal((await read(adopted.row.id)).decisions.find((item: any) => item.id === a.id).text, "只用 A 稿");
+  } finally { end(f); }
+});
+
 test("manual acceptance history uses the recorded run, never the live revision or an automatic close", async () => {
   const f = await fixture();
   try {
