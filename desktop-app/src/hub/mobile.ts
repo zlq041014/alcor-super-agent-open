@@ -15,6 +15,7 @@ import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import type { Hub } from "./service";
 import { stamp, Store } from "./store";
 import { projectAgentTree } from "./mobile-agent-tree";
+import { mobileResume } from "./mobile-resume";
 
 const id = z.string().min(1).max(200);
 const uuid = z.string().uuid();
@@ -38,6 +39,7 @@ const message = z.object({
 const peerRequest = z.discriminatedUnion("route", [
   z.object({ route: z.literal("catalog"), native: z.boolean().default(false) }).strict(),
   z.object({ route: z.literal("agents"), projectId: id }).strict(),
+  z.object({ route: z.literal("resume"), projectId: id, version: id }).strict(),
   z.object({ route: z.literal("history"), projectId: id, discussion: id.optional(), session: session.optional(),
     after: z.number().int().nonnegative().default(0), epoch: id.optional(),
   }).strict(),
@@ -354,7 +356,7 @@ export class MobileDesk {
       res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
       res.end(JSON.stringify(data));
     };
-    const route = /^\/mobile\/v1\/(pair|catalog|agents|history|pull|push|command|accept|artifact|delivery|reply|material)$/.exec(req.url ?? "")?.[1];
+    const route = /^\/mobile\/v1\/(pair|catalog|agents|resume|history|pull|push|command|accept|artifact|delivery|reply|material)$/.exec(req.url ?? "")?.[1];
     if (!route || req.method !== (route === "material" ? "PUT" : "POST")) { send(404, {}); return; }
     const auth = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? "")?.[1];
     if (!auth) { send(401, {}); return; }
@@ -390,6 +392,14 @@ export class MobileDesk {
 
   private async remote(device: Device, r: Incoming): Promise<unknown> {
     if (r.route === "catalog") return this.catalog(device, r.native);
+    if (r.route === "resume") {
+      const project = this.h.store.get<Project>("project", r.projectId);
+      if (!project || project.removed || project.available === false || device.grants[project.id] !== this.projectBinding(project))
+        return { allowed: false };
+      const version = this.projectVersion(project);
+      if (version !== r.version) return { allowed: true, stale: true };
+      return { allowed: true, projectId: project.id, version, ...mobileResume(this.h.store, this.ledger(), project.id, device.id) };
+    }
     if (r.route === "agents") {
       const project = this.h.store.get<Project>("project", r.projectId);
       if (!project || project.removed || project.available === false || device.grants[project.id] !== this.projectBinding(project))
@@ -482,7 +492,7 @@ export class MobileDesk {
     }
     return { at: stamp(), projects: projects.map((p) => ({
       id: p.id, name: p.name, version: this.projectVersion(p), backend: this.h.settings().executorBackend,
-    })), discussions, groups, deliveries: received };
+    })), discussions, groups, deliveries: received, capabilities: { projectResume: true } };
   }
 
   private listNative(projectId: string, backend: "codex" | "dsh") {

@@ -270,7 +270,14 @@ const DECISIONS = {
 SCREENS.project = ({ id }) => {
   const p = PROJECTS[id], c = S.computers[p.device], tab = S.tabs.project;
   let body = '';
-  if (tab === 'tree') {
+  if (tab === 'resume') {
+    const ds = (DECISIONS[id] || []).filter(d => d.flag !== 'conflict');
+    const conv = Object.values(S.convs).find(x => x.project === id);
+    body = sec('生效决定') + (ds.length ? group(ds.map(d => row({ icon: 'check', title: esc(d.text), sub: d.src }))) : '<div class="empty"><b>还没有生效决定</b></div>') +
+      sec('最近变化') + (conv ? group([convRow(conv)]) : '<div class="empty"><b>还没有记录</b></div>') +
+      sec('等待事项与缺口') + ((DECISIONS[id] || []).some(d => d.flag === 'conflict' && S.flags.conflict)
+        ? group([row({ icon: 'clock', title: '原讨论有并列决定，等待核对', act: 'sheet', arg: 'conflict' })]) : '<div class="empty"><b>暂无待核对事项</b></div>');
+  } else if (tab === 'tree') {
     let hiddenDepth = -1;
     const branch = S.flags.collapsedAgents || {};
     const nodes = agentNodes(id);
@@ -294,7 +301,7 @@ SCREENS.project = ({ id }) => {
   }
   return page({
     title: esc(p.name), sub: `<i class="dot ${c.online ? 'on' : 'off'}"></i>${esc(computerLabel(c))}`,
-    head: `<div class="seg-wrap">${seg([['tree', 'Agent'], ['convs', '对话'], ['rules', '决定']], tab, 'tabProject')}</div>`,
+    head: `<div class="seg-wrap">${seg([['resume', '接续'], ['tree', 'Agent'], ['convs', '对话'], ['rules', '决定']], tab, 'tabProject')}</div>`,
     body: `<div class="pb">${c.online ? '' : `<div style="padding:0 14px 10px">${box(`离线，以下是 ${p.sync} 的缓存`, 'amber', 'clock')}</div>`}${body}</div>`,
   });
 };

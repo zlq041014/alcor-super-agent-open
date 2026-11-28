@@ -336,7 +336,7 @@ function freshState(prev) {
     input: {}, mats: {}, typing: false, busy: null, sugg: null,
     computers: seedComputers(), convs: seedConvs(), notes: seedNotes(), mems: seedMems(), rems: seedRems(), events: seedEvents(), tasks: {},
     set: seedSettings(), pet: { shot: null, drag: false, sleep: false },
-    tabs: { sessions: 'recent', notes: 'inbox', mem: 'life', project: 'tree', rem: 'next' },
+    tabs: { sessions: 'recent', notes: 'inbox', mem: 'life', project: 'resume', rem: 'next' },
     q: '', scripts: [], flags: {}, stick: true,
   };
 }

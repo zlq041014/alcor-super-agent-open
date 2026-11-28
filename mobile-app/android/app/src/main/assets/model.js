@@ -220,6 +220,49 @@ export function recordDecision(d, text, quote, existing, parents = existing?.hea
 }
 
 const deliveriesByPeer = new Map();
+const resumeByProject = new Map();
+export function projectResume(data, key) {
+  const project = data.projects[key], saved = resumeByProject.get(key);
+  return project?.shared && saved?.version === project.version ? saved : undefined;
+}
+
+export async function refreshProjectResume(data, key, current) {
+  const project = data.projects[key];
+  if (!project?.shared) throw new Error('这个项目已不再共享');
+  const peer = data.peers[project.peer];
+  if (!peer?.online) return;
+  if (!peer.projectResume) throw new Error('桌面版尚不支持项目接续，请更新桌面端');
+  const valid = () => current() && data.projects[key]?.shared && data.projects[key]?.version === project.version;
+  let result;
+  try { result = await desktop(project.peer, 'resume', { projectId: project.id, version: project.version }); }
+  catch (error) {
+    if (valid() && error.revoked) { forgetSharedProjects(data, project.peer); persist(data); }
+    throw error;
+  }
+  if (!valid()) return;
+  if (result?.allowed === false) {
+    resumeByProject.delete(key); data.projects[key].shared = false;
+    if (data.agentTrees) delete data.agentTrees[key];
+    persist(data);
+    throw new Error('电脑已撤回这个项目的共享');
+  }
+  if (result?.stale === true) {
+    resumeByProject.delete(key);
+    throw new Error('项目授权版本已变化，请刷新项目');
+  }
+  if (result?.allowed !== true || result.projectId !== project.id || result.version !== project.version || !Number.isFinite(Date.parse(result.at)))
+    throw new Error('电脑返回了不匹配的项目接续');
+  const rows = Object.fromEntries(['decisions', 'changes', 'pending', 'gaps'].map(group => {
+    const items = result[group];
+    if (!Array.isArray(items) || items.length > 6 || items.some(r => !r || typeof r.id !== 'string' || typeof r.text !== 'string' || r.text.length > 270 ||
+        r.at !== undefined && !Number.isFinite(Date.parse(r.at)) ||
+        r.target && (!['work', 'discussion'].includes(r.target.kind) || typeof r.target.id !== 'string')))
+      throw new Error('电脑返回的项目接续条目无效');
+    return [group, items];
+  }));
+  resumeByProject.set(key, { ...rows, version: result.version, at: result.at });
+}
+
 export function sharedDeliveries(data) {
   return [...deliveriesByPeer].flatMap(([peer, rows]) => data.peers[peer]?.online
     ? rows.filter(row => data.projects[desktopKey(peer, row.projectId)]?.shared).map(row => ({ ...row, peer })) : []);
@@ -235,13 +278,18 @@ export async function readDelivery(data, peer, id, artifact) {
 
 function catalog(data, peer, value) {
   deliveriesByPeer.set(peer, value.deliveries ?? []);
+  data.peers[peer].projectResume = value.capabilities?.projectResume === true;
   const active = new Set(value.projects.map((p) => desktopKey(peer, p.id)));
   for (const [key, p] of Object.entries(data.projects)) if (p.peer === peer) {
     p.shared = active.has(key);
-    if (!p.shared && data.agentTrees) delete data.agentTrees[key];
+    if (!p.shared) {
+      resumeByProject.delete(key);
+      if (data.agentTrees) delete data.agentTrees[key];
+    }
   }
   for (const p of value.projects) {
     const key = desktopKey(peer, p.id);
+    if (data.projects[key]?.version !== p.version || !data.peers[peer].projectResume) resumeByProject.delete(key);
     data.projects[key] = { ...p, key, peer, shared: true };
   }
   const ids = new Set(value.discussions.map((a) => a.id));
@@ -265,6 +313,7 @@ function forgetSharedProjects(data, peer) {
   deliveriesByPeer.delete(peer);
   for (const [key, p] of Object.entries(data.projects)) if (p.peer === peer) {
     p.shared = false;
+    resumeByProject.delete(key);
     if (data.agentTrees) delete data.agentTrees[key];
   }
 }
@@ -457,7 +506,25 @@ async function pull(data, pc) {
   }
 }
 
-export async function syncPeer(data, peer, { includeNative = false, open = '', publish = () => {} } = {}) {
+export async function refreshPeerCatalog(data, peer, current) {
+  const pc = data.peers[peer.id] ??= { ...peer, online: false, cursor: 0 };
+  let value;
+  try { value = await desktop(peer.id, 'catalog', { native: false }); }
+  catch (error) {
+    if (current()) {
+      pc.online = false; pc.issue = error.message;
+      if (error.revoked) forgetSharedProjects(data, peer.id);
+      persist(data);
+    }
+    return false;
+  }
+  if (!current()) return false;
+  catalog(data, peer.id, value); pc.online = true; pc.issue = ''; pc.at = value.at;
+  persist(data);
+  return true;
+}
+
+export async function syncPeer(data, peer, { includeNative = false, open = '', publish = () => {}, canDispatch = () => true } = {}) {
   const pc = data.peers[peer.id] ??= { ...peer, online: false, cursor: 0 };
   const wasOnline = pc.online;
   try {
@@ -471,10 +538,12 @@ export async function syncPeer(data, peer, { includeNative = false, open = '', p
     await pull(data, pc);
     for (const d of listDialogs(data, WORK).filter((d) => d.peer === pc.id && d.kind === 'discussion' &&
         data.projects[d.project]?.shared && (d.dirty || d.out?.length || d.decisionOut?.length))) {
+      if (!canDispatch()) break;
       try { await flushDialog(data, d); }
       catch (e) { d.syncError = e.message; }
     }
     for (const w of Object.values(data.work).filter((w) => w.stage === 'local' && w.peer === peer.id)) {
+      if (!canDispatch()) break;
       if (w.stage !== 'local') continue;
       const p = data.projects[w.project], d = data.dialogs[w.dialog];
       const { projectId, version, expiresAt } = w.command;
@@ -513,6 +582,7 @@ export async function syncPeer(data, peer, { includeNative = false, open = '', p
       log(w, 'sending', '已开始发送，等待电脑的登记证据');
       persist(data);
       publish();
+      if (!canDispatch()) { log(w, 'local', '已保留授权，离开接续页后继续等待投递'); break; }
       try {
         const receipt = await desktop(peer.id, 'command', { value: w.command });
         applyReceipt(w, receipt, now());

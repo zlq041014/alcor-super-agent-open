@@ -1,4 +1,4 @@
-import { readDelivery } from './model.js';
+import { readDelivery, desktopKey, refreshProjectResume, refreshPeerCatalog } from './model.js';
 import { esc } from './icons.js';
 import { addMessage, agentDialog, attachProject, authorize, autoTitle, browse, chosen, copy, decisions, listDialogs, load, locate, log, namedProjects, native,
   newChat, newDiscussion, now, online, openWork, persist, readArtifact, recordDecision, refreshDialog, renameChat, respond, stateIssue,
@@ -648,9 +648,16 @@ async function loadAgentPreview(key) {
   ui.agentError = ''; ui.agentLoading = true;
   render();
   try {
-    await sync();
+    ui.online = online();
     const project = agentProject(key);
-    if (data.peers[project.peer]?.online) await refreshAgentTree(data, key);
+    const peer = ui.settings.peers.find(p => p.id === project.peer);
+    const current = () => ui.agentRequest === request && ui.mode === WORK && ui.screen === 'agent-project' && ui.agentProject === key &&
+      ui.settings.peers.some(p => p.id === peer.id && p.grant === peer.grant);
+    if (ui.online) await (async () => {
+      if (!current() || !await refreshPeerCatalog(data, peer, current) || !current()) return;
+      if (ui.agentTab === 'resume') await refreshProjectResume(data, key, current);
+      else if (ui.agentTab === 'tree') await refreshAgentTree(data, key);
+    })();
   } catch (error) {
     if (ui.agentRequest === request) ui.agentError = error.message;
   } finally {
@@ -669,7 +676,7 @@ function openAgentProject(key) {
   ui.screen = 'agent-project';
   ui.sheet = null;
   ui.agentProject = key;
-  ui.agentTab = 'tree';
+  ui.agentTab = 'resume';
   ui.agentCollapsed = new Set();
   void run(() => loadAgentPreview(key));
 }
@@ -707,6 +714,7 @@ function sync(includeNative = false) {
   syncJob = (async () => {
     await Promise.all(peers.map((p) => syncPeer(data, p, {
       includeNative, open: ui.screen === 'chat' && ui.current,
+      canDispatch: () => ui.screen !== 'agent-projects' && ui.screen !== 'agent-project',
       publish: () => { if (data.peers[p.id].online) data.last = data.peers[p.id].at; publishCatalog(); },
     })));
     save();
@@ -1518,15 +1526,39 @@ app.addEventListener('click', (e) => {
       case 'pet-details': show('pet-details'); break;
       case 'go-agent-projects':
         if (mode !== WORK) break;
-        ui.sheet = null; ui.screen = 'agent-projects'; render({ focus: null }); void run(() => sync());
+        ui.sheet = null; ui.screen = 'agent-projects'; render({ focus: null });
+        if (online()) void run(async () => {
+          const current = peer => ui.mode === WORK && ui.screen === 'agent-projects' &&
+            ui.settings.peers.some(p => p.id === peer.id && p.grant === peer.grant);
+          await Promise.all(ui.settings.peers.map(peer => current(peer) && refreshPeerCatalog(data, peer, () => current(peer))));
+          if (ui.mode === WORK && ui.screen === 'agent-projects') render({ focus: null });
+        });
         break;
       case 'agent-project': openAgentProject(v); break;
       case 'agent-refresh':
         if (!ui.agentLoading) await loadAgentPreview(ui.agentProject);
         break;
       case 'agent-tab':
-        if (['tree', 'chats', 'decisions'].includes(v)) { ui.agentTab = v; render(); }
+        if (['resume', 'tree', 'chats', 'decisions'].includes(v)) {
+          ui.agentTab = v;
+          if (v === 'resume' || v === 'tree') await loadAgentPreview(ui.agentProject);
+          else render();
+        }
         break;
+      case 'resume-discussion': {
+        const p = agentProject(ui.agentProject);
+        const d = data.dialogs[desktopKey(p.peer, v)];
+        if (d?.project === p.key && d.kind === 'discussion' && d.listed !== false) {
+          go(d.id, false);
+          if (ui.online && data.peers[p.peer]?.online) {
+            try { await refreshDialog(data, d); }
+            catch (error) { d.historyError = error.message; }
+            if (ui.current === d.id && ui.screen === 'chat') render({ bottom: true });
+          }
+        }
+        else throw new Error('这场原讨论暂不可打开');
+        break;
+      }
       case 'agent-fold':
         agentProject(ui.agentProject);
         if (!ui.agentCollapsed.delete(v)) ui.agentCollapsed.add(v);
@@ -1540,7 +1572,7 @@ app.addEventListener('click', (e) => {
       case 'agent-open-work': {
         const p = agentProject(ui.agentProject);
         if (w?.project !== p.key) break;
-        go(homeId(WORK), false);
+        if (ui.agentTab !== 'resume') go(homeId(WORK), false);
         openWorkDetail(w, !!w.receipt?.question);
         break;
       }

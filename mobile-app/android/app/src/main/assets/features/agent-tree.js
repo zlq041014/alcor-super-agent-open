@@ -1,5 +1,5 @@
 import { A, esc, ic } from '../icons.js';
-import { decisions, listDialogs } from '../model.js';
+import { decisions, desktopKey, listDialogs, projectResume } from '../model.js';
 import { WORK } from './modes.js';
 
 const labels = {
@@ -56,7 +56,21 @@ export function agentScreen(data, ui) {
   const online = ui.online && data.peers[p.peer]?.online;
   const tab = ui.agentTab;
   let content;
-  if (tab === 'tree') content = cached?.nodes.length ? tree(cached.nodes, ui.agentCollapsed) : empty(cached ? '没有 Agent 节点' : '暂无结构');
+  if (tab === 'resume') {
+    const resume = projectResume(data, p.key);
+    const summary = ui.agentLoading ? '正在核实…' : ui.agentError ? ui.agentError + (resume ? ' · 上次核实 ' + time(resume.at) : '') : (!online ? resume ? '离线 · 上次核实 ' + time(resume.at) : '离线 · 尚未核实项目' :
+      resume ? '已核实 · ' + time(resume.at) : '尚未核实项目');
+    const entry = (item) => {
+      const target = item.target;
+      const d = target?.kind === 'discussion' && data.dialogs[desktopKey(p.peer, target.id)];
+      if (d && d.project === p.key && d.listed !== false) return row(item.text, time(item.at), 'resume-discussion', target.id);
+      if (target?.kind === 'work' && data.work[target.id]?.project === p.key) return row(item.text, time(item.at), 'agent-open-work', target.id);
+      return `<div class="reminder-row agent-row"><span><b>${esc(item.text)}</b><small>${esc(time(item.at))}</small></span></div>`;
+    };
+    const groups = [['decisions', '生效决定'], ['changes', '最近变化'], ['pending', '等待事项'], ['gaps', '证据缺口']];
+    content = `<p class="foot-note" role="status">${esc(summary)}</p>` + (resume ? groups.map(([key, name]) =>
+      `<section aria-label="${name}"><h2 class="foot-note">${name}</h2>${resume[key].map(entry).join('') || '<p class="foot-note">暂无</p>'}</section>`).join('') : '');
+  } else if (tab === 'tree') content = cached?.nodes.length ? tree(cached.nodes, ui.agentCollapsed) : empty(cached ? '没有 Agent 节点' : '暂无结构');
   else {
     const contexts = listDialogs(data, WORK).filter(d => d.project === p.key && d.kind === 'discussion');
     content = tab === 'chats' ? contexts.map(d => row(d.title, time(d.used || d.listedAt), 'open', d.id)).join('') || empty('还没有对话')
@@ -64,7 +78,7 @@ export function agentScreen(data, ui) {
         r.versions.find(v => v.version === r.heads[0])?.text ?? '决定', d.title, 'open', d.id))).join('') || empty('还没有决定');
   }
   return head(p.name, 'go-agent-projects', data.peers[p.peer]?.name ?? '', btn(ui.agentLoading ? '读取中' : '刷新', 'agent-refresh')) +
-    `<div class="tabs" role="tablist">${[['tree','结构'],['chats','对话'],['decisions','决定']].map(([id, label]) =>
+    `<div class="tabs" role="tablist">${[['resume','接续'],['tree','结构'],['chats','对话'],['decisions','决定']].map(([id, label]) =>
       `<button role="tab" aria-selected="${tab === id}" data-act="agent-tab" data-v="${id}">${label}</button>`).join('')}</div>
       <div class="list agent-list">${tab === 'tree' && (cached || !online || ui.agentError) ?
         `<div class="foot-note">${!online ? '电脑离线' : ui.agentError ? esc(ui.agentError) : '已同步'}${cached ? ' · ' + esc(time(cached.at)) + (cached.truncated ? ' · 最近 250 项' : '') : ''}</div>` : ''}

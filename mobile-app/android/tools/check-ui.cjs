@@ -476,11 +476,20 @@ async function main() {
               const payload = body.body;
               const value = (x) => answer(id, { deviceId: body.id, value: x });
               if (body.route === 'catalog') return value({
+                capabilities: { projectResume: true },
                 at: stamp(), projects: fixture.revokeProject ? [] : [{ id: 'p', name: 'alcor-web', version: 'v1', backend: 'dsh' }],
                 discussions: fixture.revokeProject ? [] : [{ ...room, at: body.id === peer.id ? earlier : stamp(), session: body.id === peer.id ? { backend: 'codex', threadId: 'ori' } : undefined }],
                 groups: payload.native ? [{ projectId: 'p', backend: 'codex', at: stamp(),
                   items: [{ id: 'native', title: '原会话登录页', session: { backend: 'codex', threadId: 'ori' } }] }] : undefined,
               });
+              if (body.route === 'resume') {
+                fixture.resumeCalls = (fixture.resumeCalls ?? 0) + 1;
+                if (fixture.revokeProject) return value({ allowed: false });
+                if (payload.version !== 'v1') return value({ allowed: true, stale: true });
+                return value({ allowed: true, projectId: 'p', version: 'v1', at: stamp(),
+                  decisions: [{ id: 'summary-fixture', text: '可回查的共享决定', target: { kind: 'discussion', id: room.id } }],
+                  changes: [], pending: [], gaps: [{ id: 'gap-fixture', text: '原讨论有并列决定，等待核对。' }] });
+              }
               if (body.route === 'agents') return value(fixture.revokeProject ? { allowed: false } : {
                 allowed: true, projectId: 'p', at: stamp(), nodes: [
                   { id: 'agent-root', kind: 'discussion', title: '登录页负责人', discussionId: room.id, state: 'discussion',
@@ -1462,6 +1471,15 @@ async function main() {
       await agentPage.getByRole('button', { name: /alcor-web/ }).click();
     };
     await projects();
+    await agentPage.getByRole('tab', { name: '接续', exact: true }).waitFor();
+    await agentPage.getByRole('button', { name: '可回查的共享决定', exact: true }).waitFor();
+    await agentPage.getByRole('region', { name: '证据缺口' }).getByText('原讨论有并列决定，等待核对。').waitFor();
+    assert.equal(await agentPage.evaluate(() => fixture.posts), 0);
+    await agentPage.evaluate(() => { fixture.pc(false); window.alcorForeground(); });
+    await agentPage.getByRole('status').getByText(/离线 · 上次核实/).waitFor();
+    await agentPage.getByRole('button', { name: '可回查的共享决定', exact: true }).waitFor();
+    await agentPage.evaluate(() => fixture.pc(true));
+    await agentPage.getByRole('tab', { name: '结构', exact: true }).click();
     await agentPage.getByRole('button', { name: /验收节点.*待回答/ }).waitFor();
     await agentPage.getByRole('button', { name: '折叠 登录页负责人' }).click();
     assert.equal(await agentPage.getByRole('button', { name: /验收节点/ }).count(), 0);
@@ -1480,6 +1498,7 @@ async function main() {
     await prepared.getByRole('button', { name: '保存交接草稿' }).click();
     assert.equal(await agentPage.evaluate(() => fixture.posts), 0);
     await projects();
+    await agentPage.getByRole('tab', { name: '结构', exact: true }).click();
     await agentPage.getByRole('button', { name: /验收节点/ }).waitFor();
     await agentPage.evaluate(() => { fixture.pc(false); window.alcorForeground(); });
     await agentPage.getByText(/电脑离线.* · /).waitFor();
