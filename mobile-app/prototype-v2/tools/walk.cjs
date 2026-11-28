@@ -41,6 +41,7 @@ const CHAINS = [
   ['receipt-accept', 'f7', A('taskAccept'), A('back'), A('back')],
   ['inbox-read', 'f8', '#app .item >> nth=0', A('back')],
   ['project-resume', 'f9', A('tabProject', 'tree'), A('tabProject', 'resume')],
+  ['decision-evidence', 'f9', A('sheet', 'decisionEvidence:alcor-web|k1'), A('closeSheet')],
   ['agent-node', 'f9', A('tabProject', 'tree'), '#app .node >> nth=2', A('nodeTarget'), A('closeSheet'), A('tabProject', 'convs'), A('tabProject', 'rules')],
   ['computers', 'f10', A('flip', 'flags.relayFiles'), A('back'), A('sheet', 'pair'), A('closeSheet'), A('go', 'computer:work'), A('editRemark'), ['fill', '#app #remark-in', '公司笔记本'], A('remarkSave'), A('back'), A('go', 'computer:home'), A('editRemark'), A('remarkClear')],
   ['conflict', 'f11', A('conflictPick', '继续'), A('closeSheet')],

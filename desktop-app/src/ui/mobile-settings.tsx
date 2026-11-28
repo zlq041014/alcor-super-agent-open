@@ -30,6 +30,7 @@ export function MobileSettings({ projects, call }: {
   const [expiredId, setExpiredId] = useState<string>();
   const [problem, setProblem] = useState("");
   const [decision, setDecision] = useState<{ id: string; version: string; text: string }>();
+  const [evidence, setEvidence] = useState<{ id: string; version: string; quote?: string; sourceAt?: string; receivedAt?: string }>();
   const [busy, setBusy] = useState(false);
   const refresh = async () => {
     const next = await call({ action: "status" }) as Status;
@@ -114,9 +115,19 @@ export function MobileSettings({ projects, call }: {
         {d.heads.map((head) => {
           const v = d.versions.find((x) => x.version === head)!;
           return <p key={head}>{v.text} · {v.origin}{" "}
+            {d.heads.length === 1 && <button type="button" disabled={busy} onClick={() => void run(async () => {
+              setEvidence(undefined);
+              const result = await call({ action: "decision-source", discussion: d.discussion, decisionId: d.id, version: head });
+              setEvidence({ id: d.id, version: head, ...result });
+            })}>核对原话</button>}{" "}
             <button disabled={busy} onClick={() => setDecision({ id: d.id, version: head, text: v.text })}>修改此版本</button></p>;
         })}
         {d.heads.length > 1 && <p>两处都改过，请在手机选择要沿用的内容。</p>}
+        {evidence?.id === d.id && d.heads.length === 1 && d.heads[0] === evidence.version && <div role="status">
+          {evidence.quote ? <blockquote>{evidence.quote}</blockquote> : <p>此版暂无可核实的原话。</p>}
+          <small>{evidence.sourceAt ? `原话时间：${new Date(evidence.sourceAt).toLocaleString("zh-CN")}` : "原话时间未核实"} · {evidence.receivedAt
+            ? `电脑收悉：${new Date(evidence.receivedAt).toLocaleString("zh-CN")}` : "收悉时间未核实"} · 生效时间未单独记录</small>
+        </div>}
         {decision?.id === d.id && <form onSubmit={(e) => {
           e.preventDefault();
           void run(async () => {

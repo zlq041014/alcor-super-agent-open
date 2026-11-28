@@ -12,6 +12,7 @@ import { LIFE, WORK, homeId, inMode, toolPrefs } from './features/modes.js';
 import { memoryReceipt, memoryScreen, memorySheet, memoryUsed } from './features/memory.js';
 import { pendingWork, unreadWork } from './features/work-notices.js';
 import { agentDetails, agentScreen } from './features/agent-tree.js';
+import { decisionEvidenceView } from './features/decision-evidence-view.js';
 import { petCanvas } from './features/pet.js';
 
 export const kind = {
@@ -69,6 +70,11 @@ const compact = (value, n = 140) => value.length > n ? value.slice(0, n) + '…'
 export function view(data, ui) {
   if (['agent-projects', 'agent-project'].includes(ui.screen)) {
     const screen = agentScreen(data, ui);
+    if (ui.sheet?.type === 'decision-evidence') {
+      const project = data.projects[ui.sheet.project];
+      return project?.shared && project.version === ui.sheet.version
+        ? screen + wrap('决定出处', decisionEvidenceView(ui.sheet)) : screen;
+    }
     if (ui.sheet?.type !== 'agent-node') return screen;
     const node = data.agentTrees?.[ui.agentProject]?.nodes.find((n) => n.id === ui.sheet.value);
     const panel = agentDetails(data, ui.agentProject, node);

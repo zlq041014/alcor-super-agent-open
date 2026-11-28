@@ -6,11 +6,12 @@ type Decision = { id: string; discussion: string; heads: string[]; versions: { v
 type Work = { taskId?: string; data: { id: string; goal: string }; last?: {
   stage: string; runId?: string; evidenceHash?: string; question?: { expiresAt: string };
 } };
-type Row = { id: string; text: string; at?: string; target?: { kind: "discussion" | "work"; id: string } };
+type Target = { kind: "discussion" | "work"; id: string } | { kind: "decision"; id: string; discussion: string; version: string };
+type Row = { id: string; text: string; at?: string; target?: Target };
 const short = (text: string) => redact(text).slice(0, 240);
 const receiptText: Record<string, string> = { queued: "电脑已登记", waiting: "等待回答", verify: "回执待核对", running: "执行中", review: "待验收", done: "已完成", failed: "未完成" };
 
-export function mobileResume(store: Store, mobile: Store, projectId: string, deviceId: string) {
+export function mobileResume(store: Store, mobile: Store, projectId: string, deviceId: string, evidence = false) {
   const discussions = store.db.prepare(`SELECT data FROM records WHERE kind='agent' AND
     json_extract(data,'$.projectId')=? AND json_extract(data,'$.kind')='discussion' ORDER BY updated DESC, id LIMIT 250`)
     .all(projectId).map(row => JSON.parse(String(row.data)) as Agent);
@@ -24,7 +25,8 @@ export function mobileResume(store: Store, mobile: Store, projectId: string, dev
     const record = JSON.parse(String(row.data)) as Decision;
     const target = { kind: "discussion" as const, id: record.discussion };
     const version = record.heads.length === 1 ? record.versions.find(v => v.version === record.heads[0]) : undefined;
-    if (version) decisions.push({ id: record.id + ":" + version.version, text: short(version.text), at: version.at, target });
+    if (version) decisions.push({ id: record.id + ":" + version.version, text: short(version.text),
+      ...(!evidence ? { at: version.at, target } : { target: { kind: "decision", id: record.id, discussion: record.discussion, version: version.version } }) });
     else gaps.push({ id: record.id, text: record.heads.length > 1 ? "原讨论有并列决定，等待核对。" : "原决定版本不可核对。", target });
   }
 

@@ -16,6 +16,7 @@ import type { Hub } from "./service";
 import { stamp, Store } from "./store";
 import { projectAgentTree } from "./mobile-agent-tree";
 import { mobileResume } from "./mobile-resume";
+import { decisionQuote, readMobileDecisionEvidence } from "./mobile-decision-evidence";
 
 const id = z.string().min(1).max(200);
 const uuid = z.string().uuid();
@@ -26,6 +27,7 @@ const session = z.object({ backend, threadId: id, source: id.optional() }).stric
 const target = z.union([session, z.object({ backend, mode: z.enum(["read", "write"]) }).strict()]);
 const decisionInput = z.object({
   id: uuid, version: uuid, parents: z.array(uuid).max(30), text, quote: z.string().max(3000),
+  source: z.object({ messageId: id, start: z.number().int().nonnegative().max(50000), end: z.number().int().positive().max(50000) }).strict().optional(),
 }).strict();
 const command = z.object({
   id: uuid, projectId: id, version: id, discussion: id.optional(), target, goal: text, acceptance: text,
@@ -39,7 +41,8 @@ const message = z.object({
 const peerRequest = z.discriminatedUnion("route", [
   z.object({ route: z.literal("catalog"), native: z.boolean().default(false) }).strict(),
   z.object({ route: z.literal("agents"), projectId: id }).strict(),
-  z.object({ route: z.literal("resume"), projectId: id, version: id }).strict(),
+  z.object({ route: z.literal("resume"), projectId: id, version: id, evidence: z.boolean().default(false) }).strict(),
+  z.object({ route: z.literal("decision-evidence"), projectId: id, scope: id, discussion: id, decisionId: uuid, version: uuid }).strict(),
   z.object({ route: z.literal("history"), projectId: id, discussion: id.optional(), session: session.optional(),
     after: z.number().int().nonnegative().default(0), epoch: id.optional(),
   }).strict(),
@@ -63,6 +66,7 @@ const localRequest = z.discriminatedUnion("action", [
   z.object({ action: z.literal("delivery-send"), id: uuid, deviceId: deviceKey, taskId: id, runId: id,
     evidenceHash: deviceKey, grantVersion: deviceKey, artifacts: z.array(id).max(8) }).strict(),
   z.object({ action: z.literal("off") }).strict(),
+  z.object({ action: z.literal("decision-source"), discussion: id, decisionId: uuid, version: uuid }).strict(),
   z.object({ action: z.literal("decision"), discussion: id, value: decisionInput }).strict(),
 ]);
 
@@ -281,6 +285,7 @@ export class MobileDesk {
         }) : [],
       };
     }
+    if (r.action === "decision-source") return readMobileDecisionEvidence(this.h.store, r.discussion, r.decisionId, r.version);
     if (r.action === "decision") {
       const current = this.h.store.get<Decision>("mobile-decision", r.value.id);
       if (current?.discussion !== r.discussion) throw new Error("请先在手机保存并同步这项决定");
@@ -356,7 +361,7 @@ export class MobileDesk {
       res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
       res.end(JSON.stringify(data));
     };
-    const route = /^\/mobile\/v1\/(pair|catalog|agents|resume|history|pull|push|command|accept|artifact|delivery|reply|material)$/.exec(req.url ?? "")?.[1];
+    const route = /^\/mobile\/v1\/(pair|catalog|agents|resume|decision-evidence|history|pull|push|command|accept|artifact|delivery|reply|material)$/.exec(req.url ?? "")?.[1];
     if (!route || req.method !== (route === "material" ? "PUT" : "POST")) { send(404, {}); return; }
     const auth = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? "")?.[1];
     if (!auth) { send(401, {}); return; }
@@ -392,13 +397,21 @@ export class MobileDesk {
 
   private async remote(device: Device, r: Incoming): Promise<unknown> {
     if (r.route === "catalog") return this.catalog(device, r.native);
+    if (r.route === "decision-evidence") {
+      const project = this.h.store.get<Project>("project", r.projectId);
+      if (!project || project.removed || project.available === false || device.grants[project.id] !== this.projectBinding(project)) return { state: "missing" };
+      if (this.projectVersion(project) !== r.scope) return { state: "stale" };
+      const discussion = this.h.store.get<Agent>("agent", r.discussion);
+      if (discussion?.kind !== "discussion" || discussion.projectId !== project.id) return { state: "missing" };
+      return readMobileDecisionEvidence(this.h.store, discussion.id, r.decisionId, r.version);
+    }
     if (r.route === "resume") {
       const project = this.h.store.get<Project>("project", r.projectId);
       if (!project || project.removed || project.available === false || device.grants[project.id] !== this.projectBinding(project))
         return { allowed: false };
       const version = this.projectVersion(project);
       if (version !== r.version) return { allowed: true, stale: true };
-      return { allowed: true, projectId: project.id, version, ...mobileResume(this.h.store, this.ledger(), project.id, device.id) };
+      return { allowed: true, projectId: project.id, version, ...mobileResume(this.h.store, this.ledger(), project.id, device.id, r.evidence) };
     }
     if (r.route === "agents") {
       const project = this.h.store.get<Project>("project", r.projectId);
@@ -492,7 +505,7 @@ export class MobileDesk {
     }
     return { at: stamp(), projects: projects.map((p) => ({
       id: p.id, name: p.name, version: this.projectVersion(p), backend: this.h.settings().executorBackend,
-    })), discussions, groups, deliveries: received, capabilities: { projectResume: true } };
+    })), discussions, groups, deliveries: received, capabilities: { projectResume: true, decisionEvidence: true } };
   }
 
   private listNative(projectId: string, backend: "codex" | "dsh") {
@@ -546,12 +559,15 @@ export class MobileDesk {
     const duplicate = current.versions.find((x) => x.version === value.version);
     if (duplicate) {
       if (duplicate.origin !== origin || duplicate.text !== value.text || duplicate.quote !== value.quote ||
-          JSON.stringify(duplicate.parents) !== JSON.stringify(value.parents)) throw new Error("决定版本编号冲突");
+          JSON.stringify(duplicate.parents) !== JSON.stringify(value.parents) ||
+          JSON.stringify(duplicate.source) !== JSON.stringify(value.source)) throw new Error("决定版本编号冲突");
       return current;
     }
     if (current.versions.length >= 30) throw new Error("这项决定已达历史版本上限，请另记一项决定");
     if (value.parents.some((id) => !current.versions.some((x) => x.version === id)) ||
         new Set(value.parents).size !== value.parents.length) throw new Error("决定的依据版本尚未同步");
+    if (value.source && !decisionQuote(this.h.store, discussion, value.source, value.quote))
+      throw new Error("决定的原话或引用区间无法核对");
     const result = { ...current, heads: [...current.heads.filter((x) => !value.parents.includes(x)), value.version],
       versions: [...current.versions, { ...value, origin, at: stamp() }] };
     this.h.store.put("mobile-decision", result);

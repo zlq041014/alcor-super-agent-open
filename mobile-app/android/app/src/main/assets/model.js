@@ -209,9 +209,13 @@ export const transcript = (d) => {
   return d.kind === 'discussion' ? merged.sort((a, b) => a.at.localeCompare(b.at)) : merged;
 };
 
-export function recordDecision(d, text, quote, existing, parents = existing?.heads ?? []) {
+export function recordDecision(d, text, quote, existing, parents = existing?.heads ?? [], sourceMessage) {
   const id = existing?.id ?? uid(), version = uid();
-  const input = { id, version, parents, text, quote: quote.slice(0, 3000) };
+  const end = /[\uD800-\uDBFF]/.test(quote.charAt(2999)) && /[\uDC00-\uDFFF]/.test(quote.charAt(3000)) ? 2999 : 3000;
+  const excerpt = quote.slice(0, end);
+  const source = sourceMessage?.role === 'user' && sourceMessage.text === quote && excerpt
+    ? { messageId: sourceMessage.id, start: 0, end: excerpt.length } : undefined;
+  const input = { id, version, parents, text, quote: excerpt, ...(source ? { source } : {}) };
   const record = { id, heads: [...(existing?.heads ?? []).filter((x) => !parents.includes(x)), version],
     versions: [...(existing?.versions ?? []), { ...input, origin: '手机', at: now() }] };
   d.decisions = mergeById(decisions(d), [record]);
@@ -234,7 +238,7 @@ export async function refreshProjectResume(data, key, current) {
   if (!peer.projectResume) throw new Error('桌面版尚不支持项目接续，请更新桌面端');
   const valid = () => current() && data.projects[key]?.shared && data.projects[key]?.version === project.version;
   let result;
-  try { result = await desktop(project.peer, 'resume', { projectId: project.id, version: project.version }); }
+  try { result = await desktop(project.peer, 'resume', { projectId: project.id, version: project.version, ...(peer.decisionEvidence ? { evidence: true } : {}) }); }
   catch (error) {
     if (valid() && error.revoked) { forgetSharedProjects(data, project.peer); persist(data); }
     throw error;
@@ -256,11 +260,34 @@ export async function refreshProjectResume(data, key, current) {
     const items = result[group];
     if (!Array.isArray(items) || items.length > 6 || items.some(r => !r || typeof r.id !== 'string' || typeof r.text !== 'string' || r.text.length > 270 ||
         r.at !== undefined && !Number.isFinite(Date.parse(r.at)) ||
-        r.target && (!['work', 'discussion'].includes(r.target.kind) || typeof r.target.id !== 'string')))
+        r.target && (!['work', 'discussion', 'decision'].includes(r.target.kind) || typeof r.target.id !== 'string' ||
+          r.target.kind === 'decision' && (typeof r.target.discussion !== 'string' || typeof r.target.version !== 'string'))))
       throw new Error('电脑返回的项目接续条目无效');
     return [group, items];
   }));
   resumeByProject.set(key, { ...rows, version: result.version, at: result.at });
+}
+
+export async function fetchDecisionEvidence(data, key, target) {
+  const project = data.projects[key];
+  const stillSeen = () => projectResume(data, key)?.decisions.some(({ target: row }) => row?.kind === 'decision' && row.id === target.id &&
+      row.version === target.version && row.discussion === target.discussion);
+  if (!stillSeen()) throw new Error('决定已变化，请刷新项目');
+  if (!data.peers[project.peer]?.online) throw new Error('电脑未连接，无法核对原话');
+  let result;
+  try { result = await desktop(project.peer, 'decision-evidence', { projectId: project.id, scope: project.version,
+    discussion: target.discussion, decisionId: target.id, version: target.version }); }
+  catch (error) {
+    if (error.revoked) { forgetSharedProjects(data, project.peer); persist(data); }
+    throw error;
+  }
+  if (!data.projects[key]?.shared || data.projects[key]?.version !== project.version) throw new Error('项目授权已变化');
+  if (!stillSeen()) throw new Error('决定已变化，请刷新项目');
+  if (!['verified', 'unverified', 'missing', 'stale', 'conflict'].includes(result?.state) ||
+      result.state === 'verified' && (typeof result.quote !== 'string' || result.quote.length > 3000 || typeof result.messageId !== 'string') ||
+      [result.sourceAt, result.receivedAt].some(at => at !== undefined && !Number.isFinite(Date.parse(at))))
+    throw new Error('电脑返回的决定出处无效');
+  return result;
 }
 
 export function sharedDeliveries(data) {
@@ -279,6 +306,7 @@ export async function readDelivery(data, peer, id, artifact) {
 function catalog(data, peer, value) {
   deliveriesByPeer.set(peer, value.deliveries ?? []);
   data.peers[peer].projectResume = value.capabilities?.projectResume === true;
+  data.peers[peer].decisionEvidence = value.capabilities?.decisionEvidence === true;
   const active = new Set(value.projects.map((p) => desktopKey(peer, p.id)));
   for (const [key, p] of Object.entries(data.projects)) if (p.peer === peer) {
     p.shared = active.has(key);
@@ -378,10 +406,10 @@ export function agentDialog(data, key, node, nativeSession = false) {
 
 const nativeRef = (d) => d.kind === 'codex' || d.kind === 'dsh';
 
-export async function refreshDialog(data, d) {
+export async function refreshDialog(data, d, { readOnly = false } = {}) {
   const project = data.projects[d.project];
   if (!project?.shared || !data.peers[d.peer]?.online) return;
-  if (d.own && d.dirty) await flushDialog(data, d);
+  if (!readOnly && d.own && d.dirty) await flushDialog(data, d);
   for (let pages = 0; pages < 4; pages++) {
     const prior = d.history;
     const value = await desktop(d.peer, 'history', {
@@ -414,12 +442,22 @@ async function flushChanges(data, d) {
   const p = data.projects[d.project];
   while (d.dirty || d.out?.length || d.decisionOut?.length) {
     const batch = (d.out ?? []).slice(0, 5);
-    const updates = (d.decisionOut ?? []).slice(0, 5);
+    const decisions = (d.decisionOut ?? []).slice(0, 5);
+    const readyCount = decisions.findIndex(row => row.source && d.out?.slice(5).some(m => m.id === row.source.messageId));
+    const updates = readyCount < 0 ? decisions : decisions.slice(0, readyCount);
+    const supportsEvidence = data.peers[d.peer]?.decisionEvidence === true;
+    if (updates.some(row => row.wireEvidence && !supportsEvidence)) throw new Error('电脑版本变化，请用支持出处的桌面版核对待同步决定');
+    let frozen = false;
+    for (const row of updates) if (row.source && row.wireEvidence === undefined) {
+      row.wireEvidence = supportsEvidence;
+      frozen = true;
+    }
+    if (frozen) persist(data);
     await desktop(d.peer, 'push', {
       projectId: p.id, discussion: d.remote, title: d.title, session: d.session,
       messages: batch.map(({ id, role, text, at }) => ({ id, role, text, at }))
         .map((m) => ({ ...m, text: m.text.slice(0, 18000) })),
-      decisions: updates,
+      decisions: updates.map(({ wireEvidence, source, ...base }) => wireEvidence ? { ...base, source } : base),
     });
     d.dirty = false;
     d.out?.splice(0, batch.length);

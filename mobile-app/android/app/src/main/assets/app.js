@@ -1,4 +1,4 @@
-import { readDelivery, desktopKey, refreshProjectResume, refreshPeerCatalog } from './model.js';
+import { readDelivery, desktopKey, fetchDecisionEvidence, refreshProjectResume, refreshPeerCatalog } from './model.js';
 import { esc } from './icons.js';
 import { addMessage, agentDialog, attachProject, authorize, autoTitle, browse, chosen, copy, decisions, listDialogs, load, locate, log, namedProjects, native,
   newChat, newDiscussion, now, online, openWork, persist, readArtifact, recordDecision, refreshDialog, renameChat, respond, stateIssue,
@@ -636,6 +636,10 @@ function agentProject(key) {
 }
 
 function publishCatalog() {
+  if (ui.sheet?.type === 'decision-evidence') {
+    const project = data.projects[ui.sheet.project];
+    if (!project?.shared || project.version !== ui.sheet.version) { ui.sheet = null; render(); }
+  }
   if (ui.screen === 'agent-project' && !sharedProjects(data, ui.settings.peers).some((p) => p.key === ui.agentProject)) {
     ui.screen = 'agent-projects';
     ui.sheet = null;
@@ -1224,9 +1228,10 @@ async function send(d, value, existing) {
   }
   const selected = d.kind === 'discussion' && /^(?:这次[，,]?)?(?:就用|采用|决定用|记下决定[：:])(.{1,180})$/.exec(value);
   if (selected) {
-    submitToDiscussion(d, value, existing);
+    const original = submitToDiscussion(d, value, existing);
     const old = chosen(d);
-    recordDecision(d, selected[1].trim(), value, old);
+    recordDecision(d, selected[1].trim(), value, old, old?.heads ?? [], original);
+    void run(() => sync());
     save();
     render({ bottom: true });
     return;
@@ -1545,18 +1550,34 @@ app.addEventListener('click', (e) => {
           else render();
         }
         break;
-      case 'resume-discussion': {
+      case 'resume-discussion': case 'resume-open-source': {
         const p = agentProject(ui.agentProject);
-        const d = data.dialogs[desktopKey(p.peer, v)];
+        const [discussion, message] = act === 'resume-open-source' ? JSON.parse(v) : [v];
+        const d = data.dialogs[desktopKey(p.peer, discussion)];
         if (d?.project === p.key && d.kind === 'discussion' && d.listed !== false) {
           go(d.id, false);
           if (ui.online && data.peers[p.peer]?.online) {
-            try { await refreshDialog(data, d); }
+            try { await refreshDialog(data, d, { readOnly: true }); }
             catch (error) { d.historyError = error.message; }
             if (ui.current === d.id && ui.screen === 'chat') render({ bottom: true });
           }
+          if (message && ui.current === d.id && ui.screen === 'chat') {
+            const original = app.querySelector(`[data-message="${CSS.escape(message)}"]`);
+            if (original) original.scrollIntoView({ block: 'center' });
+            else toast('原话不在当前同步页，可在「决定出处」核对。');
+          }
         }
         else throw new Error('这场原讨论暂不可打开');
+        break;
+      }
+      case 'resume-decision-evidence': {
+        const p = agentProject(ui.agentProject), target = JSON.parse(v), before = ui.sheet;
+        button.disabled = true;
+        try {
+          const result = await fetchDecisionEvidence(data, p.key, target);
+          if (ui.mode === WORK && ui.screen === 'agent-project' && ui.agentProject === p.key && ui.sheet === before)
+            show('decision-evidence', { result, project: p.key, version: p.version, discussion: target.discussion });
+        } finally { button.disabled = false; }
         break;
       }
       case 'agent-fold':

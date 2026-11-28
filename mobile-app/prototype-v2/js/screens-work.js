@@ -273,7 +273,7 @@ SCREENS.project = ({ id }) => {
   if (tab === 'resume') {
     const ds = (DECISIONS[id] || []).filter(d => d.flag !== 'conflict');
     const conv = Object.values(S.convs).find(x => x.project === id);
-    body = sec('生效决定') + (ds.length ? group(ds.map(d => row({ icon: 'check', title: esc(d.text), sub: d.src }))) : '<div class="empty"><b>还没有生效决定</b></div>') +
+    body = sec('生效决定') + (ds.length ? group(ds.map(d => row({ icon: 'check', title: esc(d.text), sub: '核对原话', act: 'sheet', arg: 'decisionEvidence:' + id + '|' + d.id }))) : '<div class="empty"><b>还没有生效决定</b></div>') +
       sec('最近变化') + (conv ? group([convRow(conv)]) : '<div class="empty"><b>还没有记录</b></div>') +
       sec('等待事项与缺口') + ((DECISIONS[id] || []).some(d => d.flag === 'conflict' && S.flags.conflict)
         ? group([row({ icon: 'clock', title: '原讨论有并列决定，等待核对', act: 'sheet', arg: 'conflict' })]) : '<div class="empty"><b>暂无待核对事项</b></div>');
@@ -306,6 +306,15 @@ SCREENS.project = ({ id }) => {
   });
 };
 ACT.tabProject = v => { S.tabs.project = v; render(); };
+
+SHEETS.decisionEvidence = ({ id }) => {
+  const [project, decision] = id.split('|');
+  const value = DECISIONS[project]?.find(row => row.id === decision);
+  const conv = Object.values(S.convs).find(row => row.project === project);
+  return sheet('决定出处', value ? `<p class="lead">${esc('项目决定：' + value.text)}</p><p class="foot">原话时间：11-24 10:12 · 电脑收悉：11-25 09:00 · 生效时间未单独记录</p>` +
+    (conv ? group([row({ icon: 'chat', title: '打开原讨论', act: 'openConv', arg: conv.id })]) : '') : '<p>这版没有可核实的原话引用。</p>');
+};
+ACT.foldAgent = id => { const state = S.flags.collapsedAgents ||= {}; state[id] = !state[id]; render(); };
 ACT.foldAgent = id => { const state = S.flags.collapsedAgents ||= {}; state[id] = !state[id]; render(); };
 SHEETS.node = ({ id }) => {
   const [pid, nid] = id.split('|'), n = agentNodes(pid).find(x => x.id === nid), p = PROJECTS[pid];
