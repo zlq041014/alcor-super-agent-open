@@ -569,6 +569,36 @@ test("native success requires current evidence and user acceptance", async () =>
     end(f);
   }
 });
+test("manual acceptance history uses the recorded run, never the live revision or an automatic close", async () => {
+  const f = await fixture();
+  try {
+    const t = await created(f, "原版验收标题");
+    await writeFile(join(f.project, "only-v1.md"), "fixture text");
+    const old = await completed(f.hub, t, "只属于原验收的正文");
+    await f.hub.request(review(f.hub, old));
+    const sample = f.hub.store.all("acceptance")[0];
+    const next = { ...old, id: "current-run-2", revision: 2, response: "当前版本的不同结果" };
+    f.hub.store.put("run", next);
+    f.hub.store.put("task", { ...f.hub.getTask(t.id), title: "新版标题", revision: 2, runId: next.id, archived: true });
+    const auto = { ...sample, id: "auto", revision: 2, runId: next.id };
+    for (const method of ["declared-file-checks", "graph-review", "loop-contract"]) f.hub.store.put("acceptance", { ...auto, id: method, method });
+    f.hub.store.put("acceptance", { ...auto, id: "loop-explicit", method: "loop-contract", reviewedBy: "user", runId: undefined });
+    const history = (await f.hub.snapshot()).manualAcceptances;
+    assert.deepEqual(history.map(a => a.id).sort(), [sample.id, "loop-explicit"].sort());
+    const original = await f.hub.request({ op: "acceptance.read", id: sample.id });
+    assert.equal(original.title, "原版验收标题");
+    assert.equal(original.runId, old.id);
+    assert.equal(original.revision, 1);
+    assert.equal(original.result.response, "只属于原验收的正文");
+    assert.deepEqual(original.result.files.map((f: { name: string }) => f.name), ["only-v1.md"]);
+    assert.equal((await f.hub.request({ op: "acceptance.read", id: "loop-explicit" })).result, undefined);
+    await assert.rejects(f.hub.request({ op: "acceptance.read", id: "loop-contract" }), /找不到这条人工验收记录/);
+    f.hub.store.put("run", { ...old, response: "变化了，不能当作原结果" });
+    assert.equal((await f.hub.request({ op: "acceptance.read", id: sample.id })).result, undefined);
+    assert.equal(f.hub.getTask(t.id).runId, next.id);
+    assert.equal(f.hub.store.all("task").length, 1);
+  } finally { end(f); }
+});
 test("review rejects identical results from a different run before and during file verification", async () => {
   const f = await fixture();
   try {

@@ -238,6 +238,18 @@ test("原生循环直接执行，独立复核的自然语言交回执行并可�
   assert.equal(f.hub.store.all("acceptance")[0].nodeId, node.id);
 });
 
+test("explicit loop acceptance is projected as a manual receipt", async t => {
+  const f = await fixture(t);
+  const { id } = await f.create([{ title: "人工核对", method: "user", checks: [] }], []);
+  await f.wait(() => f.task(id).state === "verifying");
+  assert.deepEqual((await f.hub.snapshot()).manualAcceptances, []);
+  await f.control(id, "accept");
+  const [review] = (await f.hub.snapshot()).manualAcceptances;
+  assert.equal(review.taskId, id);
+  assert.equal(review.method, "loop-contract");
+  assert.equal(review.revision, f.task(id).revision);
+});
+
 test("原生循环在发送前退出，重启回收预占并只发送一次当前步骤", async (t) => {
   const f = await fixture(t, { executorRuns: 2 });
   let prepared: Run | undefined;
@@ -596,6 +608,7 @@ test("直接创建 DSH 循环；失败输出回灌，回合额度用尽仍能验
   );
   assert.match(f.fake.prompts[1], /文件不存在/);
   assert.equal(f.hub.store.all("acceptance").at(-1)?.method, "loop-contract");
+  assert.deepEqual((await f.hub.snapshot()).manualAcceptances, []);
   assert.deepEqual(f.hub.store.all("approval"), []);
   assert.equal(
     f.hub.store.all("message").filter((m) => m.id.startsWith("loop-result:"))

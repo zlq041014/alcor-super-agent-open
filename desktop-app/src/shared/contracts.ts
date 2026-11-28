@@ -492,7 +492,20 @@ export interface Artifact extends Entity {
   origin: "attachment" | "result";
   status: string;
 }
+export interface ManualAcceptance {
+  id: string;
+  taskId: string;
+  runId?: string;
+  revision: number;
+  at: string;
+  method: "user-review" | "loop-contract";
+  title?: string;
+}
+export type ManualAcceptanceDetail = ManualAcceptance & {
+  result?: { response: string; diff: string; truncated: boolean; files: { id: string; name: string }[] };
+};
 export interface Snapshot {
+  manualAcceptances: ManualAcceptance[];
   reuseItems: ReuseItem[];
   reuseUses: ReuseUse[];
   workIssues: WorkIssue[];
@@ -641,6 +654,7 @@ export function taskAdvance(
   return advance;
 }
 export const Request = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("acceptance.read"), id }).strict(),
   z.object({ op: z.literal("reuse.publish"), id: z.string().uuid().optional(), revision: z.number().int().positive().optional(), taskId: id, runId: id,
     title: z.string().trim().min(1).max(100), condition: z.string().trim().min(1).max(1000), excerpt: z.string().trim().min(1).max(6000),
     projectIds: z.array(id).min(1).max(12), requestId: id }).strict(),

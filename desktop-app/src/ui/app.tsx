@@ -74,6 +74,7 @@ import {
 } from "../shared/contracts";
 import { AgentTree, AgentWorkspace, stateOf } from "./agents";
 import { AgentRoster } from "./agent-roster";
+import { AcceptanceHistory } from "./acceptance-history";
 import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import { MobileDelivery } from "./mobile-delivery";
 import { RecordReuse, ReuseLibrary, SaveReuse } from "./reuse-items";
@@ -573,6 +574,7 @@ function App() {
   const title: Record<string, string> = {
     chat: "与星引对话",
     work: "所有工作",
+    handled: "已处理",
     roster: "Agent 名册",
     library: "留用架",
     projects: "项目空间",
@@ -584,6 +586,7 @@ function App() {
   const menu = [
     ["chat", "对话", MessageSquare],
     ["work", "工作", Layers3],
+    ["handled", "已处理", CheckCircle2],
     ["projects", "项目", FolderOpen],
     ["roster", "Agent 名册", Terminal],
     ["library", "留用架", BookOpen],
@@ -1318,6 +1321,7 @@ function App() {
               openTask={t => void selectTask(t)} showLaunch={showRouted} />}
             {view === "library" && <ReuseLibrary snapshot={s} request={api.request} refresh={refresh}
               showLaunch={showRouted} openTask={t => void selectTask(t)} />}
+            {view === "handled" && <div className="page"><AcceptanceHistory snapshot={s} request={api.request} /></div>}
             {view === "work" && (
               <div className="page">
                 <PageTitle

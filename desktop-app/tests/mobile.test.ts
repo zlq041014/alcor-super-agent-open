@@ -526,6 +526,9 @@ test("手机文本产物只来自这次授权的回合，核对后的验收不�
     assert.equal((await call(p, "accept", { id, evidenceHash })).value, true);
     assert.equal(h.getTask(task.id).state, "done");
     assert.equal(h.store.all("acceptance")[0].runId, result.id);
+    const [accepted] = (await h.snapshot()).manualAcceptances;
+    assert.equal(accepted.runId, result.id);
+    assert.equal((await h.request({ op: "acceptance.read", id: accepted.id })).result.response, result.response);
     assert.equal((await call(p, "accept", { id, evidenceHash })).value, true);
     assert.match((await call(p, "accept", { id, evidenceHash: "0".repeat(64) })).error, /回执已变化/);
   } finally {

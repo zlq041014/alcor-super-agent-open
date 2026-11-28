@@ -666,6 +666,11 @@ test("质量标准：标准卡验收后主成果才开工，分支继承标准�
   const view = await f.view(id);
   assert.equal(view.nodes.find((n) => n.key === "standard")?.standard?.card, card);
   assert.equal(view.spent, 7);
+  assert.deepEqual((await f.hub.snapshot()).manualAcceptances, []);
+  await f.hub.request({ op: "task.control", action: "accept", id, revision: f.task(id).revision });
+  const [accepted] = (await f.hub.snapshot()).manualAcceptances;
+  assert.equal(accepted.runId, final.run.id);
+  assert.match((await f.hub.request({ op: "acceptance.read", id: accepted.id })).result.response, /建议人工验收/);
 });
 
 test("质量标准：修正次数用完的复核带差距放行；不与视频预览同用，授权文本不与标准卡同名", async (t) => {

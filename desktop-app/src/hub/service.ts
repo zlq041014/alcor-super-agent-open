@@ -61,6 +61,7 @@ import { Store, entity, stamp, LEDGER_VERSION } from "./store";
 import { backupFiles, readBackupManifest } from "./backup-files";
 import { Vault, hash, redact, within, fileInfo } from "./security";
 import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
+import { manualAcceptances, readManualAcceptance } from "./manual-acceptance";
 import { Roster } from "./roster";
 import { Reuse } from "./reuse";
 import { Brain, ModelOutputError } from "./brain";
@@ -492,6 +493,7 @@ export class Hub extends EventEmitter {
       roster: this.roster.list(),
       memories: this.store.all<Memory>("memory").filter((m) => !m.deleted),
       approvals: this.store.all("approval"),
+      manualAcceptances: manualAcceptances(this.store),
       artifacts: this.store.all("artifact"),
       invocations: this.store.all("invocation").slice(-100),
       evidence: this.store.all("evidence").slice(-500),
@@ -708,6 +710,7 @@ export class Hub extends EventEmitter {
         return this.launches.cancel(r.id);
       case "agent.launch.confirm":
         return this.launches.confirm(r.id, r.profile);
+      case "acceptance.read": return readManualAcceptance(this.store, r.id);
       case "reuse.publish":
         return this.desk.once(r.requestId, r, () => this.reuse.publish(r));
       case "reuse.scope": {
@@ -3527,6 +3530,8 @@ export class Hub extends EventEmitter {
           runId: r.id,
           evidenceHash: digest,
           method: "user-review",
+          title: redact(current.title),
+          resultHash: digest,
         });
         current.reason = undefined;
         this.saveTask(current, "done");

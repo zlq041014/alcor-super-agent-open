@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resultBasis } from "./manual-acceptance";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { assertRevision, overlaps } from "../core/policy";
@@ -444,6 +445,7 @@ export class GraphWork {
           this.store.put("acceptance", {
             ...entity(), taskId: id, runId: run.id, revision: task.revision,
             method: plan.userAccepted ? "user-review" : "graph-review",
+            ...(plan.userAccepted ? resultBasis(this.store, task, run) : {}),
             versions: plan.assembled!.versions,
           });
           this.hub.saveTask(current, "done");
@@ -573,7 +575,7 @@ export class GraphWork {
     await this.ensureCombined(plan);
     const live = this.hub.getTask(task.id);
     assertRevision(live, task.revision);
-    if (live.state !== "verifying" || this.plan(live).finalAccepted !== plan.finalAccepted)
+    if (live.state !== "verifying" || live.runId !== plan.finalAccepted || this.plan(live).finalAccepted !== plan.finalAccepted)
       throw new Error("验收期间组合版本发生变化");
     this.store.tx(() => this.ledger.confirm(plan.id));
     this.refresh(task.id);

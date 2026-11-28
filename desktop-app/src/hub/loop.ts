@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resultBasis } from "./manual-acceptance";
 import {
   constants,
   copyFileSync,
@@ -3369,6 +3370,7 @@ export class LoopEngine {
             runId: t.runId,
             revision: t.revision,
             method: "loop-contract",
+            ...(userConfirmed ? { reviewedBy: "user", ...resultBasis(this.store, t, t.runId ? this.store.get<Run>("run", t.runId) : undefined) } : {}),
             contractRevision: loop.contractRevision,
             ...(loop.nativePlan && { nodeId: loop.nativePlan.nodeId }),
             evidence: criteria
