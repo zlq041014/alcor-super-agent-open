@@ -299,6 +299,15 @@ async function main() {
                 files: [{ ref: 'fixture-ref', name: '项目资料.zip', mime: 'application/zip', size: 220, source: 'phone' }] }]));
               answer(id, true); window.alcorInbox(); return;
             }
+            if (action === 'pair.scan') {
+              fixture.scanAttempts = (fixture.scanAttempts ?? 0) + 1;
+              if (fixture.scanDenied) return window.alcorResult(id, 'error', '没有相机权限，可以粘贴配对码');
+              if (fixture.scanDeferred) {
+                fixture.finishScan = () => answer(id, 'ALCOR1.synthetic-example');
+                return;
+              }
+              return answer(id, fixture.scanResult ?? null);
+            }
             if (action === 'model.save' || action === 'search.save' || action === 'pair') {
               if (action === 'model.save') {
                 const officialSearch = new URL(body.endpoint).hostname === 'api.deepseek.com';
@@ -308,7 +317,11 @@ async function main() {
                 brave = !!body.key;
                 settings = { ...settings, search: settings.officialSearch || brave };
               }
-              if (action === 'pair') settings = { ...settings, peers: [peer, other] };
+              if (action === 'pair') {
+                fixture.pairAttempts = (fixture.pairAttempts ?? 0) + 1;
+                if (fixture.rejectPair) return window.alcorResult(id, 'error', '配对码已过期');
+                settings = { ...settings, peers: [peer, other] };
+              }
               sessionStorage.setItem('settings', JSON.stringify(settings));
               return answer(id, settings);
             }
@@ -641,7 +654,16 @@ async function main() {
     await page.getByText('保存这条离线草稿').waitFor();
     await openComputer();
     await click('配对一台电脑');
-    await page.locator('textarea[name=code]').fill('fixture-invite');
+    await page.locator('textarea[name=code]').fill('synthetic-paste');
+    await page.evaluate(() => { fixture.scanDenied = true; });
+    await click('扫一扫');
+    await page.getByRole('alert').getByText('没有相机权限，可以粘贴配对码').waitFor();
+    assert.equal(await page.locator('textarea[name=code]').inputValue(), 'synthetic-paste');
+    await page.evaluate(() => { fixture.scanDenied = false; fixture.scanResult = 'ALCOR1.synthetic-example'; });
+    await click('扫一扫');
+    await page.getByRole('status').getByText('已填入配对码，点「配对」继续。').waitFor();
+    assert.equal(await page.locator('textarea[name=code]').inputValue(), 'ALCOR1.synthetic-example');
+    assert.equal(await page.evaluate(() => fixture.pairAttempts ?? 0), 0);
     await click('配对');
     await page.getByText('工作电脑', { exact: true }).waitFor();
     await page.keyboard.press('Escape');

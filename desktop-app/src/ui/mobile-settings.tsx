@@ -1,3 +1,4 @@
+import { PairingQr } from "./pairing-qr";
 import React, { useEffect, useState } from "react";
 import { Smartphone } from "lucide-react";
 import type { Project } from "../shared/contracts";
@@ -23,9 +24,10 @@ export function MobileSettings({ projects, call }: {
 }) {
   const [status, setStatus] = useState<Status>();
   const [address, setAddress] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState("我的手机");
   const [selected, setSelected] = useState<string[]>([]);
-  const [invite, setInvite] = useState<{ code: string; expiresAt: number }>();
+  const [invite, setInvite] = useState<{ code: string; expiresAt: number; inviteId: string; name: string; projects: string[] }>();
+  const [expiredId, setExpiredId] = useState<string>();
   const [problem, setProblem] = useState("");
   const [decision, setDecision] = useState<{ id: string; version: string; text: string }>();
   const [busy, setBusy] = useState(false);
@@ -42,6 +44,20 @@ export function MobileSettings({ projects, call }: {
     finally { setBusy(false); }
   };
   useEffect(() => { void run(refresh); }, []);
+  useEffect(() => {
+    if (!invite) return;
+    const timer = setTimeout(() => setExpiredId(invite.inviteId), Math.max(0, invite.expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [invite]);
+  const visibleInvite = invite && invite.inviteId !== expiredId && invite.expiresAt > Date.now() ? invite : undefined;
+  const editInvitation = (change: () => void) => {
+    if (!invite) { change(); return; }
+    void run(async () => {
+      if (invite.expiresAt > Date.now()) await call({ action: "cancel-invite", id: invite.inviteId });
+      setInvite(undefined);
+      change();
+    });
+  };
   return <section className="settings-section" aria-label="手机接入">
     <div className="section-title"><Smartphone size={20}/><div><h2>手机接入</h2>
       <p>配对后，手机可读取选中的项目并交接工作。新工作只读或写入所选项目，原会话续聊沿用原权限。</p></div></div>
@@ -50,38 +66,46 @@ export function MobileSettings({ projects, call }: {
     <form onSubmit={(e) => {
       e.preventDefault();
       void run(async () => {
-        setInvite(await call({ action: "invite", address, projects: selected, name }));
+        setInvite(await call({ action: "invite", address, projects: selected, name, replace: invite?.inviteId }));
         await refresh();
       });
     }}>
       <div className="form-grid">
-        <label>局域网地址<select value={address} onChange={(e) => setAddress(e.target.value)}>
+        <label>局域网地址<select value={address} disabled={busy} onChange={e => { const value=e.target.value; editInvitation(() => setAddress(value)); }}>
           <option value="">选择地址</option>
           {status?.addresses.map((value) => <option key={value}>{value}</option>)}
         </select></label>
-        <label>手机名称<input required maxLength={60} value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：我的手机"/></label>
+        <label>手机名称<input required maxLength={60} value={name} disabled={busy} onChange={e => { const value=e.target.value; editInvitation(() => setName(value)); }} placeholder="例如：我的手机"/></label>
       </div>
       <fieldset>
         <legend>共享项目（最多 8 个）</legend>
         {projects.filter((p) => !p.removed && p.available !== false).map((p) =>
           <label key={p.id} title={p.path}>
             <input type="checkbox" checked={selected.includes(p.id)}
-              disabled={selected.length >= 8 && !selected.includes(p.id)}
-              onChange={(e) => setSelected((old) => e.target.checked ? [...old, p.id] : old.filter((x) => x !== p.id))}/>
+              disabled={busy || selected.length >= 8 && !selected.includes(p.id)}
+              onChange={e => { const checked=e.target.checked; editInvitation(() => setSelected(old => checked ? [...old, p.id] : old.filter(x => x !== p.id))); }}/>
             {p.name} · {p.path}
           </label>)}
       </fieldset>
       <div className="button-row">
-        <button type="submit" disabled={busy || !address || !selected.length || !name.trim()}>生成配对码</button>
+        <button type="submit" disabled={busy || !address || !selected.length || !name.trim()}>{invite && !visibleInvite ? "重新生成配对码" : "生成配对码"}</button>
         <button type="button" disabled={busy} onClick={() => void run(refresh)}>刷新</button>
         {status?.address && <button type="button" disabled={busy} onClick={() => void run(async () => {
           await call({ action: "off" }); setInvite(undefined); await refresh();
         })}>关闭手机入口</button>}
       </div>
     </form>
-    {invite && <div>
-      <label>将配对码粘贴到手机，{new Date(invite.expiresAt).toLocaleTimeString("zh-CN")} 前有效<textarea readOnly value={invite.code} onFocus={(e) => e.target.select()}/></label>
-      <button disabled={busy} onClick={() => void run(async () => { await navigator.clipboard.writeText(invite.code); })}>复制配对码</button>
+    {visibleInvite && <div>
+      <p>{visibleInvite.name} · {visibleInvite.projects.map(id => projects.find(p => p.id === id)?.name ?? "项目已移除").join("、") || "没有共享项目"}</p>
+      <PairingQr code={visibleInvite.code}/>
+      <p>手机打开星引的「电脑 → 配对一台电脑」扫码 · {new Date(visibleInvite.expiresAt).toLocaleTimeString("zh-CN")} 前有效</p>
+      <details><summary>手动配对</summary>
+        <label>配对码<textarea readOnly value={visibleInvite.code} onFocus={(e) => e.target.select()}/></label>
+        <button disabled={busy} onClick={() => void run(async () => {
+          if (visibleInvite.expiresAt <= Date.now()) { setExpiredId(visibleInvite.inviteId); return; }
+          await navigator.clipboard.writeText(visibleInvite.code);
+        })}>复制配对码</button>
+      </details>
     </div>}
     {status?.devices.map((d) => <p key={d.id}>{d.name} · {d.projects.map((id) => projects.find((p) => p.id === id)?.name ?? "项目已移除").join("、")}
       {" "}<button disabled={busy} onClick={() => void run(async () => { await call({ action: "revoke", id: d.id }); await refresh(); })}>撤销配对</button></p>)}

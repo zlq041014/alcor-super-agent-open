@@ -47,6 +47,8 @@ M2.3 会话库迁移已实现并在既有版本的迁移测试中验证：`assis
 
 附件问答使用工具时，后续请求仍在原问题处带同一份材料；已确认的文档上传只在本轮沿用。删除附件或撤销连接后，本轮不再发送。用生产界面回归和 Android 原生夹具复验；供应商上传以合成回执验证。
 
+**扫码配对预览。** 在同一局域网打开桌面「手机接入」生成邀请，手机点「扫一扫」，核对填入的邀请后再点「配对」。拒绝相机权限或识别失败时可展开桌面「手动配对」并粘贴。已验证桌面二维码编码、Android 权限处理及粘贴后的实际配对；实体手机镜头识别仍待验收。
+
 ## 构建与验证
 
 构建需要 JDK 17、Android SDK 36 和 Gradle 8.13。在项目根目录运行 `gradle -p mobile-app/android :app:assembleDebug`，生成 `mobile-app/android/app/build/outputs/apk/debug/app-debug.apk`。单测运行 `gradle -p mobile-app/android :app:testDebugUnitTest`；`NotesMigrationCheck` 和 `ChatImportCheck`（会话库迁移、备份字节核对、快照/提交往返、损坏文件拒绝）随 `MaterialsCheck` 在设备上执行。界面改动先跑 `node mobile-app/android/tools/check-ui.cjs`；协议改动再在 `desktop-app` 用 Node 24 跑 `node --import tsx --test tests/mobile.test.ts tests/dsh-desktop.test.ts`。两者按需运行，不替代真机验收。

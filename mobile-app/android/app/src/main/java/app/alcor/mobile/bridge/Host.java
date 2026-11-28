@@ -4,6 +4,7 @@ import org.json.JSONObject;
 import app.alcor.mobile.core.Mode;
 
 public interface Host {
+    void pairScan(String id);
     boolean locked();
     void privacy(String id, String op, JSONObject input) throws Exception;
     /** Native chat snapshot; a leading ~ means the caller should fall back to readState/saveState. */

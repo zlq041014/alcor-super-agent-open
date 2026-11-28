@@ -1292,6 +1292,7 @@ function pairedView() {
 
 async function settingsAction(form, action) {
   const sh = ui.sheet;
+  if (action === 'pair' && sh.scanBusy) return;
   const submit = form.querySelector('[type=submit]');
   submit.disabled = true;
   sh.busy = true;
@@ -1725,6 +1726,26 @@ app.addEventListener('click', (e) => {
         break;
       }
       case 'tab': ui.tab = v; render(); break;
+      case 'pair-scan': {
+        const sheet = ui.sheet;
+        if (sheet.scanBusy || sheet.busy) break;
+        sheet.scanBusy = true;
+        sheet.error = "";
+        render();
+        try {
+          const code = await native('pair.scan');
+          if (ui.sheet === sheet && code) {
+            sheet.code = code;
+            sheet.scanReady = true;
+          }
+        } catch (error) {
+          sheet.error = error.message;
+        } finally {
+          sheet.scanBusy = false;
+          if (ui.sheet === sheet) render();
+        }
+        break;
+      }
       case 'sheet':
         if (v === 'permissions') await reminderPermissions();
         if (ui.mode === mode) show(v);
@@ -2029,6 +2050,12 @@ app.addEventListener('click', (e) => {
 
 app.addEventListener('input', (e) => {
   const el = e.target;
+  if (el.form?.dataset.form === 'pair' && el.name === 'code') {
+    ui.sheet.code = el.value;
+    ui.sheet.scanReady = false;
+    const notice = app.querySelector('[data-pair-scan-ready]');
+    if (notice) notice.hidden = true;
+  }
   if (el.form?.dataset.form === 'persona')
     el.form.querySelector('.persona-preview-copy').textContent = personaPreview(personaFrom(el.form));
   if (el.id === 'composer') {

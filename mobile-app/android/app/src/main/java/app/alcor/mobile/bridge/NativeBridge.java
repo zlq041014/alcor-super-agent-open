@@ -52,6 +52,10 @@ public final class NativeBridge {
         }
         if (host.locked()) { host.result(id, "error", LOCKED); return; }
         try {
+            if ("pair.scan".equals(op)) {
+                host.pairScan(id);
+                return;
+            }
             if (op.startsWith("privacy.")) {
                 host.privacy(id, op, new JSONObject(payload));
                 return;

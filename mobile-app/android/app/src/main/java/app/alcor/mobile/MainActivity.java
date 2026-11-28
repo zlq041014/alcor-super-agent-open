@@ -40,6 +40,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public final class MainActivity extends Activity implements Host {
+    private static final int PAIR_SCAN = 5923;
+    private record ScanReply(String id, String type, Object value) {}
+    private String scanRequest;
+    private ScanReply scanReply;
     private static final String HOST = "appassets.androidplatform.net";
     private static final int STATE_LIMIT = 8 * 1024 * 1024;
     private static final Object STATE_LOCK = new Object();
@@ -237,6 +241,7 @@ public final class MainActivity extends Activity implements Host {
     protected void onActivityResult(int code, int status, Intent result) {
         super.onActivityResult(code, status, result);
         if (appLock.onActivityResult(code, status)) return;
+        if (code == PAIR_SCAN) { pairScanReturned(status, result); return; }
         if (backup.result(code, status, result)) return;
         if (code == 5912) {
             File pending = savingMarkdown;
@@ -337,6 +342,7 @@ public final class MainActivity extends Activity implements Host {
     }
 
     private void showUnlocked() {
+        deliverScanReply();
         if (reloadAfterBackup) {
             reloadAfterBackup = false;
             synchronized (backupFence) { allowRestoredSnapshot = true; }
@@ -347,6 +353,47 @@ public final class MainActivity extends Activity implements Host {
             webStarted = true;
             web.loadUrl("https://" + HOST + "/index.html");
         } else runJs("window.alcorForeground?.(); window.alcorReminderOpened?.(); window.alcorWorkNoticeOpened?.()");
+    }
+
+    @Override @SuppressWarnings("deprecation") public void pairScan(String id) {
+        runOnUiThread(() -> {
+            if (isDestroyed()) return;
+            if (locked() || Mode.active(this) != Mode.WORK || scanRequest != null) {
+                sendResult(id, "error", "请在解锁后的工作模式打开扫码");
+                return;
+            }
+            var options = new com.journeyapps.barcodescanner.ScanOptions()
+                .setCaptureActivity(PairScanActivity.class).setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE)
+                .setPrompt("扫描电脑上的星引配对二维码").setBeepEnabled(false).setBarcodeImageEnabled(false).setOrientationLocked(false);
+            options.addExtra(com.google.zxing.client.android.Intents.Scan.SHOW_MISSING_CAMERA_PERMISSION_DIALOG, false);
+            scanRequest = id;
+            try { startActivityForResult(options.createScanIntent(this), PAIR_SCAN); }
+            catch (android.content.ActivityNotFoundException failure) {
+                scanRequest = null;
+                sendResult(id, "error", "无法打开扫码，可以粘贴配对码");
+            }
+        });
+    }
+
+    private void pairScanReturned(int status, Intent data) {
+        String id = scanRequest;
+        scanRequest = null;
+        if (id == null) return;
+        if (data != null && data.getBooleanExtra(com.google.zxing.client.android.Intents.Scan.MISSING_CAMERA_PERMISSION, false)) {
+            scanReply = new ScanReply(id, "error", "没有相机权限，可以粘贴配对码");
+        } else if (status == RESULT_OK && data != null) {
+            String content = data.getStringExtra(com.google.zxing.client.android.Intents.Scan.RESULT);
+            try { scanReply = new ScanReply(id, "done", PairingCode.require(content == null ? "" : content)); }
+            catch (IllegalArgumentException invalid) { scanReply = new ScanReply(id, "error", invalid.getMessage()); }
+        } else scanReply = new ScanReply(id, "done", JSONObject.NULL);
+        deliverScanReply();
+    }
+
+    private void deliverScanReply() {
+        if (locked() || scanReply == null) return;
+        var reply = scanReply;
+        scanReply = null;
+        sendResult(reply.id(), reply.type(), reply.value());
     }
 
     @Override protected void onStop() {

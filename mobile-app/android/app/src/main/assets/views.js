@@ -483,8 +483,12 @@ export function view(data, ui) {
     choice('search-source', '联网搜索', ui.settings.officialSearch ? 'DeepSeek 官方 · 沿用模型 Key' :
       ui.settings.search ? 'Brave Search · 已配置' : '未配置搜索凭据', ui.settings.officialSearch ? 'search-query' : 'sheet', 'search')) +
     row(button(ic('plus', 'sm') + ' 配对一台电脑', 'sheet', 'pair', 'primary grow') + (peers.length ? button('刷新', 'sync') : '')));
-  if (sh.type === 'pair') return sheet('配对一台电脑', lead('在同一网络内，打开桌面星引的「设置 → 手机接入」，选择共享项目，生成配对码。') +
-    form('pair', field('配对码', 'code', '', { type: 'textarea', max: 2000, extra: 'required autocapitalize="none" spellcheck="false"' }), '配对', sh.busy));
+  if (sh.type === 'pair') return sheet('配对一台电脑', lead('同一局域网 · 桌面「连接手机」') +
+    row(`<button type="button" class="btn ghost grow" data-act="pair-scan" ${sh.scanBusy || sh.busy ? 'disabled' : ''}>${sh.scanBusy ? '正在打开扫码…' : '扫一扫'}</button>`) +
+    (sh.scanReady ? '<p class="foot-note" role="status" data-pair-scan-ready>已填入配对码，点「配对」继续。</p>' : '') +
+    form('pair', field('配对码', 'code', sh.code ?? '', { type: 'textarea', max: 2000, placeholder: '扫码或粘贴配对码',
+      extra: `required autocapitalize="none" spellcheck="false"${sh.scanBusy ? ' readonly' : ''}` }),
+      '配对', sh.busy || sh.scanBusy, button('取消', 'close', '', 'text')), 'transfer-sheet');
   if (sh.type === 'search') return sheet('接入联网搜索', lead('如果使用 DeepSeek 官方服务，同一把 Key 就能联网搜索。自定义网关可以另配 Brave Search。') +
     button('使用 DeepSeek 官方 Key', 'sheet', 'setup') +
     form('search', field('Brave Search API Key', 'key', '', { type: 'password', max: 4000, placeholder: '粘贴 API Key', extra: 'required' }), '保存搜索配置', sh.busy) +

@@ -179,9 +179,7 @@ public final class MobileService {
                 return Network.fetch(modelConfig(), input.getString("url"));
             }
             case "pair": {
-                String code = input.getString("code").trim();
-                if (!code.startsWith("ALCOR1.") || code.length() > 2000 || !code.substring(7).matches("[A-Za-z0-9_-]+"))
-                    throw new IllegalArgumentException("请粘贴星引桌面生成的配对码");
+                String code = PairingCode.require(input.getString("code"));
                 JSONObject invite = new JSONObject(new String(Base64.decode(code.substring(7), Base64.URL_SAFE | Base64.NO_WRAP), StandardCharsets.UTF_8));
                 URI url = Network.https(invite.getString("url"));
                 if (!url.getPath().isEmpty()) throw new IllegalArgumentException("配对地址必须为电脑入口");

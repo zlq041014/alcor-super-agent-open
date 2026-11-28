@@ -19,6 +19,48 @@ function fileInfo(command: { id: string; projectId: string; version: string; exp
     expiresAt: command.expiresAt, name, slot, count, mode };
 }
 
+test("替换或收回单张配对码，不改变其他邀请的原共享范围", async () => {
+  const fixtures = resolve(".test-data");
+  await mkdir(fixtures, { recursive: true });
+  const root = await mkdtemp(join(fixtures, "mobile-invite-edit-"));
+  const hub = new Hub(join(root, "state"));
+  const desk = new MobileDesk(hub, 0, true);
+  try {
+    const makeProject = async (name: string) => {
+      const path = join(root, name);
+      await mkdir(path);
+      return await hub.request({ op: "project.add", name, path }) as { id: string };
+    };
+    const a = await makeProject("fixture-a"), b = await makeProject("fixture-b");
+    const mint = async (name: string, projects: string[], replace?: string) => {
+      const result = await desk.local({ action: "invite", address: "127.0.0.1", name, projects, replace }) as {
+        code: string; inviteId: string; name: string; projects: string[];
+      };
+      const wire = JSON.parse(Buffer.from(result.code.substring("ALCOR1.".length), "base64url").toString());
+      assert.equal(result.name, name);
+      assert.deepEqual(result.projects, projects);
+      assert.equal(Object.hasOwn(wire, "inviteId"), false);
+      return { ...result, wire };
+    };
+    const independent = await mint("独立邀请", [a.id]);
+    const old = await mint("改动前", [a.id]);
+    await assert.rejects(desk.local({ action: "invite", address: "127.0.0.1", name: "无效编辑", projects: ["missing"], replace: old.inviteId }), /项目不存在/);
+    const replacement = await mint("改动后", [b.id], old.inviteId);
+    assert.equal((await call(old.wire, "pair", {})).code, 401);
+    const edited = await mint("准备修改", [a.id]);
+    await desk.local({ action: "cancel-invite", id: edited.inviteId });
+    assert.equal((await call(edited.wire, "pair", {})).code, 401);
+    for (const [candidate, project] of [[independent, a], [replacement, b]] as const) {
+      const response = await call(candidate.wire, "pair", {});
+      assert.equal(response.code, 200);
+      const paired = { ...candidate.wire, token: response.pair.token };
+      const catalog = await call(paired, "catalog", { native: false });
+      assert.deepEqual(catalog.value.projects.map((p: { id: string }) => p.id), [project.id]);
+      assert.equal((await call(candidate.wire, "pair", {})).code, 401);
+    }
+  } finally { await desk.close(); hub.store.close(); }
+});
+
 test("桌面成果只由选中的手机补取，重新授权不会恢复旧分享", async () => {
   const fixtures = resolve(".test-data");
   await mkdir(fixtures, { recursive: true });

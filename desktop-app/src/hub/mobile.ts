@@ -54,7 +54,8 @@ const peerRequest = z.discriminatedUnion("route", [
 const deviceKey = z.string().regex(/^[a-f0-9]{64}$/);
 const localRequest = z.discriminatedUnion("action", [
   z.object({ action: z.literal("status") }).strict(),
-  z.object({ action: z.literal("invite"), address: id, projects: z.array(id).min(1).max(8), name: z.string().trim().min(1).max(60) }).strict(),
+  z.object({ action: z.literal("invite"), address: id, projects: z.array(id).min(1).max(8), name: z.string().trim().min(1).max(60), replace: deviceKey.optional() }).strict(),
+  z.object({ action: z.literal("cancel-invite"), id: deviceKey }).strict(),
   z.object({ action: z.literal("revoke"), id: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   z.object({ action: z.literal("delivery-devices"), taskId: id, runId: id }).strict(),
   z.object({ action: z.literal("delivery-send"), id: uuid, deviceId: deviceKey, taskId: id, runId: id,
@@ -319,6 +320,7 @@ export class MobileDesk {
       store.put("mobile-delivery", value);
       return deliverySummary(value);
     }
+    if (r.action === "cancel-invite") return this.invites.delete(r.id);
     const store = this.ledger();
     if (r.action === "off") {
       await this.stopListening();
@@ -335,12 +337,13 @@ export class MobileDesk {
     await this.listen(r.address);
     const secret = token();
     for (const [code, value] of this.invites) if (value.expiresAt < Date.now()) this.invites.delete(code);
+    if (r.replace) this.invites.delete(r.replace);
     if (this.invites.size >= 16) throw new Error("待用配对码过多，请等旧码过期");
     const expiresAt = Date.now() + 5 * 60_000;
     this.invites.set(hash(secret), { name: r.name, grants, expiresAt });
     const actual = this.server!.address() as { port: number };
     return {
-      expiresAt, code: "ALCOR1." + Buffer.from(JSON.stringify({
+      expiresAt, inviteId: hash(secret), name: r.name, projects: r.projects, code: "ALCOR1." + Buffer.from(JSON.stringify({
         id: this.deviceId(), url: `https://${r.address}:${actual.port}`, pin: this.pin, token: secret,
       })).toString("base64url"),
     };
