@@ -584,12 +584,18 @@ export interface LaunchCard {
     discussion: { id: string; role: "user" | "assistant"; text: string }[];
   };
   roster?: { id: string; name: string; revision: number };
-  reuse?: { title: string; version: number }[];
+  reuse?: { title: string; version: number; kind?: ReuseKind }[];
 }
 const ReuseSelection = z.object({ id: z.string().uuid(), version: z.number().int().positive(), versionId: z.string().uuid() }).strict();
+const ReuseKindSchema = z.enum(["content", "template", "experience"]);
+export type ReuseKind = z.infer<typeof ReuseKindSchema>;
+export const REUSE_KIND_LABELS: Record<ReuseKind, string> = { content: "内容", template: "模板", experience: "经验" };
 export type ReuseRef = z.infer<typeof ReuseSelection>;
 export type ReuseGrant = ReuseRef & { grant: string };
+export type ReuseMaterial = { title: string; condition: string; kind: ReuseKind; text: string; version: number };
+export type ReuseVersion = ReuseMaterial & { id: string; taskId: string; runId: string; sourceExcerpt?: string };
 export interface ReuseItem extends Entity {
+  kind: ReuseKind;
   title: string;
   condition: string;
   version: number;
@@ -672,10 +678,11 @@ export const Request = z.discriminatedUnion("op", [
   z.object({ op: z.literal("acceptance.read"), id }).strict(),
   z.object({ op: z.literal("reuse.publish"), id: z.string().uuid().optional(), revision: z.number().int().positive().optional(), taskId: id, runId: id,
     title: z.string().trim().min(1).max(100), condition: z.string().trim().min(1).max(1000), excerpt: z.string().trim().min(1).max(6000),
+    kind: ReuseKindSchema.optional(), guidance: z.string().trim().min(1).max(6000).optional(),
     projectIds: z.array(id).min(1).max(12), requestId: id }).strict(),
   z.object({ op: z.literal("reuse.scope"), id, revision: z.number().int().positive(), projectIds: z.array(id).max(12), active: z.boolean() }).strict(),
   z.object({ op: z.literal("reuse.project"), projectId: id }).strict(),
-  z.object({ op: z.literal("reuse.inspect"), ref: ReuseSelection }).strict(),
+  z.object({ op: z.literal("reuse.inspect"), ref: ReuseSelection, projectId: id.optional() }).strict(),
   z.object({ op: z.literal("reuse.record"), taskId: id, runId: id, ref: ReuseSelection,
     outcome: z.enum(["used", "not-used", "counterexample"]), note: z.string().trim().max(2000) }).strict(),
   z.object({ op: z.literal("roster.add"), name: z.string().trim().min(1).max(80),

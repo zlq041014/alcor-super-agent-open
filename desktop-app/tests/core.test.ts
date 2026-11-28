@@ -153,7 +153,14 @@ test("cross-project reuse pins selected accepted text, records explicit use, and
     const prepare = (projectId: string, requestId: string) => f.hub.request({ op: "task.create", requestId,
       value: { projectId, goal: "写本项目交付说明", mode: "read", advance: "single", reuse: [ref(first)] } });
     const allowed = await f.hub.request({ op: "reuse.project", projectId: b.id });
-    assert.deepEqual(allowed, [{ ...ref(first), title: publish.title, condition: publish.condition }]);
+    assert.deepEqual(allowed, [{ ...ref(first), kind: "content", title: publish.title, condition: publish.condition }]);
+    const versionKey = JSON.stringify([first.id, first.versionId]);
+    const { kind: _itemKind, ...oldItem } = f.hub.store.get("reuse-item", first.id)!;
+    const { kind: _versionKind, ...oldVersion } = f.hub.store.get("reuse-version", versionKey)!;
+    f.hub.store.put("reuse-item", oldItem);
+    f.hub.store.put("reuse-version", oldVersion);
+    assert.equal(f.hub.reuse.list()[0].kind, "content");
+    assert.equal(f.hub.reuse.inspect(ref(first)).kind, "content");
     assert.deepEqual(await f.hub.request({ op: "reuse.project", projectId: c.id }), []);
     await assert.rejects(prepare(c.id, "forbidden"), /授权已变化/);
     const tick = f.hub.tick.bind(f.hub);
@@ -203,6 +210,65 @@ test("cross-project reuse pins selected accepted text, records explicit use, and
     await f.hub.request({ ...negative, note: "这份交付没有附件" });
     assert.deepEqual(await f.hub.request({ op: "reuse.project", projectId: b.id }), []);
     assert.equal(f.hub.reuse.uses().length, 2);
+  } finally { end(f); }
+});
+
+test("cross-project templates and experience keep category and version without sending source evidence", async () => {
+  const f = await fixture();
+  try {
+    const target = async (name: string) => {
+      const path = join(f.dir, name);
+      await mkdir(path);
+      return f.hub.request({ op: "project.add", name, path });
+    };
+    const b = await target("模板采用项目"), c = await target("未获授权项目");
+    const task = await created(f, "不共享的来源标题");
+    const evidence = "原项目专属的复盘证据";
+    const templateText = "交付摘要：\n验收证据：";
+    const source = await completed(f.hub, task, templateText + "\n" + evidence);
+    await f.hub.request(review(f.hub, source));
+    const base = { op: "reuse.publish", taskId: task.id, runId: source.id, condition: "整理交付时", projectIds: [b.id] };
+    const template = await f.hub.request({ ...base, requestId: "typed-template", kind: "template", excerpt: templateText, title: "交付模板" });
+    const experience = { ...base, kind: "experience", excerpt: evidence, title: "证据经验" };
+    await assert.rejects(f.hub.request({ ...experience, requestId: "experience-no-guidance" }), /可复用的做法/);
+    await assert.rejects(f.hub.request({ ...experience, guidance: f.project, requestId: "experience-with-origin-path" }), /原项目目录/);
+    const first = await f.hub.request({ ...experience, requestId: "experience-v1", guidance: "先用本项目的数据核对证据。" });
+    const ref = ({ id, version, versionId }: typeof first) => ({ id, version, versionId });
+    const view = (projectId: string, item: typeof first) => f.hub.request({ op: "reuse.inspect", projectId, ref: ref(item) });
+    assert.deepEqual((await f.hub.request({ op: "reuse.project", projectId: b.id })).map((row: typeof first) => row.kind).sort(), ["experience", "template"]);
+    assert.deepEqual(await f.hub.request({ op: "reuse.project", projectId: c.id }), []);
+    await assert.rejects(view(c.id, first), /项目授权已变化/);
+    assert.equal((await view(b.id, template)).text, templateText);
+    assert.deepEqual(await view(b.id, first), { title: first.title, version: 1, kind: "experience", condition: base.condition, text: "先用本项目的数据核对证据。" });
+    assert.equal(f.hub.reuse.inspect(ref(first)).sourceExcerpt, evidence);
+    await assert.rejects(f.hub.request({ ...base, requestId: "experience-change-kind", id: first.id, revision: first.revision,
+      kind: "template", excerpt: templateText, title: "不该换类别" }), /类别不能随版本更改/);
+
+    const tick = f.hub.tick.bind(f.hub);
+    f.hub.tick = async () => {};
+    const edited = "交付摘要：使用项目 B 的样本\n验收证据：B 的验收记录";
+    const prepared = await f.hub.request({ op: "task.create", requestId: "typed-target", value: {
+      projectId: b.id, goal: edited, mode: "read", advance: "single", reuse: [ref(first), ref(template)],
+    } });
+    assert.deepEqual(f.hub.launches.pending().find(card => card.id === prepared.launchId)?.reuse?.map(r => r.kind), ["experience", "template"]);
+    const receipt = await f.hub.request({ op: "agent.launch.confirm", id: prepared.launchId, profile: { model: "fixture", effort: "max" } });
+    const second = await f.hub.request({ ...experience, requestId: "experience-v2", id: first.id, revision: first.revision, guidance: "新版才写入的做法" });
+    assert.equal(second.kind, "experience");
+    await assert.rejects(view(b.id, first), /留用版本或项目授权已变化/);
+    await tick();
+    for (let i = 0; i < 100 && f.hub.scheduling; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    const call = f.codex.calls.filter(row => row.method === "turn/start").at(-1);
+    const prompt = call?.params.input[0].text;
+    assert.match(prompt, /使用项目 B 的样本/);
+    assert.match(prompt, /先用本项目的数据核对证据/);
+    assert.doesNotMatch(prompt, /原项目专属|不共享的来源标题|新版才写入/);
+    const run = await completed(f.hub, f.hub.getTask(receipt.id), "B 的核对结果");
+    await f.hub.request(review(f.hub, run));
+    const record = { op: "reuse.record", taskId: receipt.id, runId: run.id, note: "用到了这个版本", outcome: "used" };
+    await assert.rejects(f.hub.request({ ...record, ref: ref(second) }), /没有发送所选留用版本/);
+    const used = await f.hub.request({ ...record, ref: ref(first) });
+    assert.deepEqual(used.ref, ref(first));
+    assert.equal(f.hub.reuse.inspect(used.ref).text, "先用本项目的数据核对证据。");
   } finally { end(f); }
 });
 

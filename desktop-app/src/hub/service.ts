@@ -747,7 +747,7 @@ export class Hub extends EventEmitter {
         return item;
       }
       case "reuse.project": return this.reuse.project(r.projectId);
-      case "reuse.inspect": return this.reuse.inspect(r.ref);
+      case "reuse.inspect": return r.projectId ? this.reuse.inspectProject(r.projectId, r.ref) : this.reuse.inspect(r.ref);
       case "reuse.record": {
         const result = this.reuse.record(r.taskId, r.runId, r.ref, r.outcome, r.note);
         this.changed();

@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
-import type { ReuseGrant, ReuseItem, ReuseRef, ReuseUse, Run, Task } from "../shared/contracts";
+import type { ReuseGrant, ReuseItem, ReuseKind, ReuseMaterial, ReuseRef, ReuseUse, ReuseVersion, Run, Task } from "../shared/contracts";
 import { redact } from "./security";
 import type { Hub } from "./service";
 import { entity, stamp } from "./store";
 
-type Item = Omit<ReuseItem, "projectIds"> & { grants: Record<string, string> };
-type Version = { id: string; version: number; title: string; condition: string; text: string; taskId: string; runId: string };
+type Item = Omit<ReuseItem, "projectIds" | "kind"> & { kind?: ReuseKind; grants: Record<string, string> };
+type Version = Omit<ReuseVersion, "kind"> & { kind?: ReuseKind };
 const key = (ref: ReuseRef) => JSON.stringify([ref.id, ref.versionId]);
 
 export class Reuse {
@@ -26,7 +26,7 @@ export class Reuse {
 
   private public(item: Item): ReuseItem {
     const { grants, ...meta } = item;
-    return { ...meta, projectIds: Object.keys(grants).filter(p => !!this.bound(item, p)) };
+    return { ...meta, kind: item.kind ?? "content", projectIds: Object.keys(grants).filter(p => !!this.bound(item, p)) };
   }
 
   list() { return this.store.all<Item>("reuse-item").map(item => this.public(item)); }
@@ -58,22 +58,29 @@ export class Reuse {
     return this.public(item);
   }
 
-  publish(input: { id?: string; revision?: number; taskId: string; runId: string; title: string; condition: string; excerpt: string; projectIds: string[] }) {
+  publish(input: { id?: string; revision?: number; taskId: string; runId: string; title: string; condition: string; excerpt: string;
+    kind?: ReuseKind; guidance?: string; projectIds: string[] }) {
     const task = this.h.getTask(input.taskId), project = this.h.project(task.projectId);
     const run = this.accepted(task, input.runId);
     if (!run.response.includes(input.excerpt)) throw new Error("留用内容应来自该回合的一段连续原文");
     const localPath = (text: string) => text.replaceAll("\\", "/").toLowerCase();
-    if (localPath([input.title, input.condition, input.excerpt].join("\n")).includes(localPath(project.path)))
+    if (localPath([input.title, input.condition, input.excerpt, input.guidance].join("\n")).includes(localPath(project.path)))
       throw new Error("请去掉原项目目录，只保留可分享的文字");
     const prior = input.id ? this.item(input.id) : undefined;
     if ((prior && (prior.revision !== input.revision || prior.projectId !== task.projectId)) || (!prior && input.revision))
       throw new Error("留用条目或来源已变化，请重新核对");
-    const item: Item = { ...(prior ?? entity()), title: redact(input.title), condition: redact(input.condition),
+    const priorKind = prior?.kind ?? "content";
+    const kind = input.kind ?? priorKind;
+    if (prior && kind !== priorKind) throw new Error("留用条目的类别不能随版本更改");
+    if (kind === "experience" && !input.guidance) throw new Error("请填写可复用的做法");
+    if (kind !== "experience" && input.guidance !== undefined) throw new Error("只有经验可以另写可复用的做法");
+    const item: Item = { ...(prior ?? entity()), kind, title: redact(input.title), condition: redact(input.condition),
       projectId: task.projectId, version: (prior?.version ?? 0) + 1, versionId: randomUUID(), revision: (prior?.revision ?? 0) + 1,
       grants: this.grants(input.projectIds, prior), active: true, updatedAt: stamp() };
     return this.store.tx(() => {
-      this.store.put("reuse-version", { id: key(item), title: item.title, condition: item.condition, version: item.version,
-        text: redact(input.excerpt), taskId: task.id, runId: run.id } satisfies Version);
+      this.store.put("reuse-version", { id: key(item), kind, title: item.title, condition: item.condition, version: item.version,
+        text: redact(input.guidance ?? input.excerpt), ...(kind === "experience" && { sourceExcerpt: redact(input.excerpt) }),
+        taskId: task.id, runId: run.id } satisfies Version);
       return this.save(item, prior);
     });
   }
@@ -85,16 +92,21 @@ export class Reuse {
     return this.store.tx(() => this.save({ ...before, grants, active, revision: revision + 1, updatedAt: stamp() }, before));
   }
 
-  inspect(ref: ReuseRef): Version {
+  inspect(ref: ReuseRef): ReuseVersion {
     const version = this.store.get<Version>("reuse-version", key(ref));
     if (!version || version.version !== ref.version) throw new Error("留用版本不可核对");
-    return version;
+    return { ...version, kind: version.kind ?? "content" };
+  }
+
+  inspectProject(projectId: string, ref: ReuseRef) {
+    this.h.project(projectId);
+    return this.materials(projectId, this.plan(projectId, [ref]))[0];
   }
 
   project(projectId: string) {
     this.h.project(projectId);
     return this.store.all<Item>("reuse-item").filter(item => this.bound(item, projectId)).map(item => ({
-      id: item.id, version: item.version, versionId: item.versionId, title: item.title, condition: item.condition,
+      id: item.id, version: item.version, versionId: item.versionId, kind: item.kind ?? "content", title: item.title, condition: item.condition,
     }));
   }
 
@@ -107,13 +119,13 @@ export class Reuse {
     });
   }
 
-  materials(projectId: string, refs: ReuseGrant[]) {
+  materials(projectId: string, refs: ReuseGrant[]): ReuseMaterial[] {
     return refs.map(ref => {
       const item = this.item(ref.id);
       if (this.bound(item, projectId) !== ref.grant) throw new Error("留用内容已撤回或停用，未发送到执行端");
-      const { title, condition, text, taskId, runId } = this.inspect(ref);
+      const { title, condition, kind, text, taskId, runId } = this.inspect(ref);
       if (!this.store.get("task", taskId) || !this.store.get("run", runId)) throw new Error("留用来源已无法核对");
-      return { title, condition, text, version: ref.version };
+      return { title, condition, kind, text, version: ref.version };
     });
   }
 

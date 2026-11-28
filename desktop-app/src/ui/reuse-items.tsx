@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import type { ReuseItem, ReuseRef, Run, Snapshot, Task } from "../shared/contracts";
+import { REUSE_KIND_LABELS, type ReuseItem, type ReuseRef, type ReuseVersion, type Run, type Snapshot, type Task } from "../shared/contracts";
+import { ReuseGoal, ReusePublishFields } from "./reuse-fields";
 
 type Request = (value: unknown) => Promise<any>;
 type ProjectOption = { id: string; name: string };
@@ -28,15 +29,15 @@ export function SaveReuse({ snapshot, task, run, request, refresh }: {
         const prior = items.find(item => item.id === field("prior"));
         setBusy(true); setNotice("");
         void request({ op: "reuse.publish", taskId: task.id, runId: run.id, title: field("title"), condition: field("condition"),
+          kind: field("kind"), ...(field("guidance") && { guidance: field("guidance") }),
           excerpt: field("excerpt"), projectIds: form.getAll("projects"), requestId: crypto.randomUUID(),
           ...(prior ? { id: prior.id, revision: prior.revision } : {}) }).then(async result => {
           if (!result.id) throw new Error(result.error ?? "未留用");
-          await refresh(); setOpen(false); setNotice("已把指定文字留到留用架。");
+          await refresh(); setOpen(false); setNotice("已保存到留用架。");
         }).catch(error => setNotice(errorText(error))).finally(() => setBusy(false));
       }}><fieldset className="profile-picker" disabled={busy}>
         <legend>留用这次的文字</legend>
-        {items.length > 0 && <label>条目<select name="prior"><option value="">新条目</option>{items.map(item =>
-          <option key={item.id} value={item.id}>{item.title} · 第 {item.version} 版</option>)}</select></label>}
+        <ReusePublishFields items={items} />
         <label>留用标题<input name="title" required maxLength={100} /></label>
         <label>适用条件<textarea name="condition" required maxLength={1000} /></label>
         <label>只保留这段原文<textarea name="excerpt" required maxLength={6000} defaultValue={run.response.trim().length <= 6000 ? run.response.trim() : ""} /></label>
@@ -51,7 +52,7 @@ export function SaveReuse({ snapshot, task, run, request, refresh }: {
 export function ReuseLibrary({ snapshot, request, refresh, showLaunch, openTask }: {
   snapshot: Snapshot; request: Request; refresh: () => Promise<void>; showLaunch: (result: any) => Promise<void>; openTask: (task: Task) => void;
 }) {
-  const [selected, setSelected] = useState(""), [details, setDetails] = useState<{ text: string; taskId: string; runId: string; versionId: string }>(),
+  const [selected, setSelected] = useState(""), [details, setDetails] = useState<ReuseVersion & { versionId: string }>(),
     [action, setAction] = useState<"scope" | "apply">(), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const items = snapshot.reuseItems ?? [], item = items.find(entry => entry.id === selected);
   const projects = snapshot.projects.filter(p => !p.removed && p.available !== false);
@@ -65,13 +66,14 @@ export function ReuseLibrary({ snapshot, request, refresh, showLaunch, openTask 
   }
   return <section className="page" aria-label="跨项目留用">
     <h1>留用架</h1>
-    <p>已验收的文字按版本带到指定项目。</p>
+    <p>按版本把已验收的内容、模板和经验带到指定项目。</p>
     {!items.length && <p>还没有跨项目留用内容。可以从已验收的结果选择「留给下次」。</p>}
     <ul>{items.map(entry => <li key={entry.id}><button type="button" disabled={busy} aria-pressed={item?.id === entry.id}
-      onClick={() => open(entry)}>{entry.title} · 第 {entry.version} 版{!entry.active && " · 已停用"}</button></li>)}</ul>
+      onClick={() => open(entry)}>{entry.title} · {REUSE_KIND_LABELS[entry.kind]} · 第 {entry.version} 版{!entry.active && " · 已停用"}</button></li>)}</ul>
     {item && details && details.versionId !== item.versionId && <p role="status">版本已变化，请重新打开条目。</p>}
     {item && details?.versionId === item.versionId && <section aria-label={item.title}>
-      <h2>{item.title} · 第 {item.version} 版</h2><p>{item.condition}</p><p className="launch-goal">{details.text}</p>
+      <h2>{item.title} · {REUSE_KIND_LABELS[item.kind]} · 第 {item.version} 版</h2><p>{item.condition}</p><p className="launch-goal">{details.text}</p>
+      {details.sourceExcerpt && <details><summary>来源原文</summary><p className="launch-goal">{details.sourceExcerpt}</p></details>}
       {origin && <button type="button" onClick={() => openTask(origin)}>打开原工作</button>}
       <p>可采用：{targets.map(p => p.name).join("、") || "无"}</p>
       <div className="button-row"><button type="button" disabled={busy} onClick={() => setAction("scope")}>编辑授权</button>
@@ -90,7 +92,7 @@ export function ReuseLibrary({ snapshot, request, refresh, showLaunch, openTask 
         <Projects items={projects} selected={item.projectIds} /></> : <>
         <label>目标项目<select name="project" defaultValue="" required><option value="">选择项目</option>
           {targets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-        <label>工作目标<textarea name="goal" required maxLength={24000} /></label><label>验收条件<textarea name="acceptance" required maxLength={12000} /></label>
+        <ReuseGoal template={details.kind === "template" ? details.text : undefined} /><label>验收条件<textarea name="acceptance" required maxLength={12000} /></label>
         <label>文件权限<select name="mode"><option value="read">只读</option><option value="write">项目内修改</option></select></label>
       </>}
       <div className="button-row"><button type="submit" className="primary">{action === "scope" ? "保存授权" : "核对派工"}</button>

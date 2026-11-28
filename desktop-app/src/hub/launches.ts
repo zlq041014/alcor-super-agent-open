@@ -77,7 +77,7 @@ export class Launches {
       kind: data.kind,
       ...(data.kind === "executor" ? { backend } : {}),
       ...(member ? { roster: { id: member.id, name: member.name, revision: member.revision } } : {}),
-      ...(materials ? { reuse: materials.map(({ title, version }) => ({ title, version })) } : {}),
+      ...(materials ? { reuse: materials.map(({ title, version, kind }) => ({ title, version, kind })) } : {}),
       parentAgentId: parent,
       projectId: p.id,
       title:

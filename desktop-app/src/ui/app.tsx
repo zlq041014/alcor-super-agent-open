@@ -92,6 +92,7 @@ import { emptyResearch, ResearchFieldsForm, researchValue } from "./research";
 import { GraphTiming } from "../shared/graph-progress";
 import {
   defaultProfile,
+  REUSE_KIND_LABELS,
   executorProfile,
   type ModelProfile,
   type LaunchCard,
@@ -1982,7 +1983,7 @@ function App() {
             委派{pendingLaunch.kind === "discussion" ? "讨论" : "执行"} Agent
           </p>
           {pendingLaunch.roster && <p className="field-help">承办 Agent：{pendingLaunch.roster.name}</p>}
-          {pendingLaunch.reuse?.length ? <p className="field-help">本次留用：{pendingLaunch.reuse.map(item => `${item.title} · 第 ${item.version} 版`).join("、")}</p> : null}
+          {pendingLaunch.reuse?.length ? <p className="field-help">本次留用：{pendingLaunch.reuse.map(item => `${item.title} · ${REUSE_KIND_LABELS[item.kind ?? "content"]} · 第 ${item.version} 版`).join("、")}</p> : null}
           <h3>{pendingLaunch.title}</h3>
           <p className="launch-goal">{pendingLaunch.detail}</p>
           {pendingLaunch.handoff && <>
