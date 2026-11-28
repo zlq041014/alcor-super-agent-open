@@ -29,6 +29,7 @@ const when = (at) => at ? new Date(at).toLocaleString('zh-CN', { month: 'numeric
 const sourceHost = (url) => { try { return new URL(url).host; } catch { return url; } };
 export const button = (label, act, v = '', appearance = 'ghost') =>
   `<button type="button" class="btn ${appearance}" data-act="${act}" data-v="${esc(v)}">${label}</button>`;
+const acceptResult = (w, label) => button(label, 'accept', JSON.stringify([w.id, w.receipt.evidenceHash]), 'primary');
 const icon = (img, label, act, value = '', cls = '', badge = '') =>
   `<button type="button" class="icon-btn ${cls}" aria-label="${label}" data-act="${act}" data-v="${esc(value)}">${ic(img)}${badge}</button>`;
 const tag = (id) => `<span class="tag ${kind[id][2]}">${kind[id][0]}</span>`;
@@ -215,7 +216,7 @@ export function view(data, ui) {
     const actions = ['local', 'upload-paused', 'uploading'].includes(w.stage)
       ? (w.stage === 'upload-paused' ? button('重传材料', 'retry-material', w.id, 'primary') : '') +
         (w.stage !== 'uploading' ? button('修改', 'edit-work', w.id) : '') + button('撤销', 'cancel', w.id, 'danger')
-      : w.stage === 'review' && r?.evidenceHash ? button('核对无误，验收', 'accept', w.id, 'primary') : r?.question ? button('回答问题', 'question', w.id, 'primary') : '';
+      : w.stage === 'review' && r?.evidenceHash ? acceptResult(w, '核对无误，验收') : r?.question ? button('回答问题', 'question', w.id, 'primary') : '';
     const linked = 'threadId' in (w.target ?? {}) && Object.values(data.dialogs).find((x) => x.project === w.project &&
       x.kind === w.target.backend && x.session?.threadId === w.target.threadId && x.session?.source === w.target.source);
     return card(head('handoff', w.goal, targetLabel(w)) + '<div>' + status(w) + '</div>' + dots +
@@ -595,7 +596,7 @@ export function view(data, ui) {
     (w.receipt?.diff ? `<div class="diff">${esc(w.receipt.diff)}</div>` : '') +
     artifacts(w) +
     (w.receipt?.text ? row(button('导出结果', 'export-work', w.id)) : '') +
-    row(button('回到原讨论', 'open', w.dialog, 'ghost grow') + (w.stage === 'review' && w.receipt?.evidenceHash ? button('验收', 'accept', w.id, 'primary') : '') +
+    row(button('回到原讨论', 'open', w.dialog, 'ghost grow') + (w.stage === 'review' && w.receipt?.evidenceHash ? acceptResult(w, '验收') : '') +
       (w.stage === 'failed' ? button('核对后重新准备', 'retry-work', w.id) : '')));
   if (sh.type === 'artifact') return sheet(sh.artifact.name, (sh.artifact.cached ? foot('手机已存副本 · 保存于 ' + esc(when(sh.artifact.at))) : '') +
     (/\.(?:md|markdown)$/i.test(sh.artifact.name)

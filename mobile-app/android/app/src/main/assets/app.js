@@ -1993,14 +1993,19 @@ app.addEventListener('click', (e) => {
       }
       case 'copy-artifact':
         copy(ui.sheet.artifact.text); toast('已复制'); break;
-      case 'accept':
+      case 'accept': {
+        const [workId, evidenceHash] = JSON.parse(v);
+        const work = data.work[workId];
+        if (work?.stage !== 'review' || work.receipt.evidenceHash !== evidenceHash)
+          throw new Error('回执已变化，请重新查看结果');
         button.disabled = true;
         try {
-          await respond(data, w, 'accept', { evidenceHash: w.receipt.evidenceHash });
+          await respond(data, work, 'accept', { evidenceHash });
           render(); void run(flushWorkNotices); void run(() => sync());
         }
         finally { button.disabled = false; }
         break;
+      }
     }
   });
 });

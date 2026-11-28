@@ -73,6 +73,7 @@ import {
   type ExecutorBackend,
 } from "../shared/contracts";
 import { AgentTree, AgentWorkspace, stateOf } from "./agents";
+import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import { WorkRecord, messageWork } from "./work-record";
 import { ProfilePicker, effortName } from "./model-profile";
 import {
@@ -2678,7 +2679,7 @@ function TaskDetail({
                   onClick={() =>
                     void run(async () => {
                       const bytes = new TextEncoder().encode(
-                        r.response + r.diff,
+                        resultEvidence(r, resultArtifacts(artifacts, r)),
                       );
                       const digest = Array.from(
                         new Uint8Array(
@@ -2692,6 +2693,7 @@ function TaskDetail({
                         id: t.id,
                         action: "accept",
                         revision: t.revision,
+                        runId: r.id,
                         evidenceHash: digest,
                       });
                     })

@@ -11,6 +11,7 @@ import { line } from "./agent-ledger";
 import { discardMobileMaterial, materialRef, readMaterialHeader, readMobileExcerpt, stageMobileMaterial, type MobileMaterial } from "./mobile-materials";
 import { mobileTls } from "./mobile-tls";
 import { attachmentKind, hash, redact } from "./security";
+import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import type { Hub } from "./service";
 import { stamp, Store } from "./store";
 import { projectAgentTree } from "./mobile-agent-tree";
@@ -66,7 +67,7 @@ type Config = { id: string; identity: string; address?: string | null };
 type Decision = { id: string; discussion: string; heads: string[]; versions: (DecisionInput & { origin: string; at: string })[] };
 type Status = "queued" | "verify" | "running" | "waiting" | "review" | "done" | "failed";
 type Receipt = {
-  stage: Status; detail: string; turnId?: string; text?: string; diff?: string; evidenceHash?: string;
+  stage: Status; detail: string; turnId?: string; runId?: string; text?: string; diff?: string; evidenceHash?: string;
   materialCount?: number;
   materialInputs?: { kind: Artifact["kind"] | "excerpt"; count: number; truncated?: number }[];
   artifacts?: { id: string; name: string }[];
@@ -339,15 +340,19 @@ export class MobileDesk {
     if (!work || work.device !== device.id) throw new Error("找不到这台手机的原请求");
     this.project(device, work.data.projectId);
     if (r.route === "accept") {
-      if (work.last?.stage === "done") return true;
-      if (work.last?.stage !== "review") throw new Error("这项工作还没有可验收的结果");
-      if (r.evidenceHash !== work.last.evidenceHash || this.workStatus(work).evidenceHash !== r.evidenceHash)
+      const receipt = this.workStatus(work);
+      if (!work.last || !["review", "done"].includes(work.last.stage) || !["review", "done"].includes(receipt.stage))
+        throw new Error("这项工作还没有可验收的结果");
+      if (r.evidenceHash !== work.last.evidenceHash || receipt.evidenceHash !== r.evidenceHash)
         throw new Error("回执已变化，请重新查看结果");
-      if (work.taskId) {
+      if (receipt.stage === "done") return true;
+      if ("threadId" in work.data.target) this.ledger().put("mobile-work", { ...work, accepted: true });
+      else {
+        if (!work.taskId || !receipt.runId) throw new Error("回执缺少本次执行记录，请重新查看结果");
         const t = this.h.getTask(work.taskId);
-        const run = this.h.store.get<Run>("run", t.runId!)!;
-        await this.h.request({ op: "task.control", id: t.id, revision: t.revision, action: "accept", evidenceHash: hash(run.response + run.diff) });
-      } else this.ledger().put("mobile-work", { ...work, accepted: true });
+        await this.h.request({ op: "task.control", id: t.id, revision: t.revision, action: "accept",
+          runId: receipt.runId, evidenceHash: receipt.evidenceHash });
+      }
       return true;
     }
     if (r.route === "artifact") {
@@ -597,13 +602,12 @@ export class MobileDesk {
       if (run.state === "unknown") return { stage: "verify", detail: t.reason ?? "缺少原生回合收据", turnId, ...evidence };
       if (run.state === "ended") {
         const stage = t.state === "done" ? "done" : run.outcome === "completed" && t.state === "verifying" ? "review" : "failed";
-        const artifacts = stage === "failed" ? [] : this.h.store.all<Artifact>("artifact")
-          .filter((a) => a.taskId === t.id && a.runId === run.id && a.origin === "result" && a.kind === "text")
-          .slice(0, 20);
+        const files = stage === "failed" ? [] : resultArtifacts(this.h.store.all<Artifact>("artifact"), run);
+        const artifacts = files.filter(a => a.kind === "text").slice(0, 20);
         return {
-          stage, detail: t.reason ?? "执行端已结束回合", turnId, ...evidence,
+          stage, detail: t.reason ?? "执行端已结束回合", turnId, runId: run.id, ...evidence,
           text: run.response.slice(0, 16000), diff: run.diff.slice(0, 9000),
-          evidenceHash: hash(JSON.stringify([run.id, run.response, run.diff, artifacts.map((a) => [a.id, a.hash])])),
+          evidenceHash: hash(resultEvidence(run, files)),
           artifacts: artifacts.map(({ id, name }) => ({ id, name })),
         };
       }

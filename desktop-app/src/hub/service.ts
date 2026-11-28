@@ -60,6 +60,7 @@ import {
 import { Store, entity, stamp, LEDGER_VERSION } from "./store";
 import { backupFiles, readBackupManifest } from "./backup-files";
 import { Vault, hash, redact, within, fileInfo } from "./security";
+import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import { Brain, ModelOutputError } from "./brain";
 import { Roles } from "./roles";
 import { Misses, type MissSample } from "./misses";
@@ -1022,7 +1023,7 @@ export class Hub extends EventEmitter {
       case "method.manage":
         return this.methods.manage(r.id, r.revision, r.action);
       case "task.control":
-        return this.control(r.id, r.action, r.revision, r.evidenceHash);
+        return this.control(r.id, r.action, r.revision, r.evidenceHash, r.runId);
       case "task.revise": {
         let t = this.getTask(r.id);
         assertRevision(t, r.revision);
@@ -3390,6 +3391,7 @@ export class Hub extends EventEmitter {
     action: string,
     revision: number,
     evidenceHash?: string,
+    reviewedRunId?: string,
   ) {
     const t = this.getTask(id);
     assertRevision(t, revision);
@@ -3434,22 +3436,26 @@ export class Hub extends EventEmitter {
         t.state !== "verifying" ||
         !r ||
         r.state !== "ended" ||
+        r.outcome !== "completed" ||
         r.revision !== t.revision ||
         !r.response
       )
         throw new Error("当前没有可验收的有效结果");
-      const digest = hash(r.response + r.diff);
-      if (evidenceHash !== digest)
+      const artifacts = (run: Run) => resultArtifacts(this.store.all<Artifact>("artifact"), run);
+      const files = artifacts(r);
+      const digest = hash(resultEvidence(r, files));
+      if (reviewedRunId !== r.id || evidenceHash !== digest)
         throw new Error("结果版本已变化，请重新查看");
-      for (const a of this.store
-        .all<Artifact>("artifact")
-        .filter((a) => a.runId === r.id))
+      for (const a of files)
         if ((await fileInfo(a.sourcePath || a.path)).hash !== a.hash)
           throw new Error("产物已在外部修改，旧结果不能用于验收");
       const current = this.getTask(t.id);
       assertRevision(current, revision);
-      if (current.state !== "verifying")
-        throw new Error("验收期间任务状态已变化，请重新核对");
+      const liveRun = this.store.get<Run>("run", r.id);
+      if (current.state !== "verifying" || current.runId !== r.id || liveRun?.state !== "ended" ||
+          liveRun.outcome !== "completed" || liveRun.revision !== current.revision ||
+          hash(resultEvidence(liveRun, artifacts(liveRun))) !== digest)
+        throw new Error("验收期间结果已变化，请重新核对");
       const context = this.store
         .all("context")
         .findLast((c) => c.taskId === t.id && c.revision === t.revision);
@@ -3471,8 +3477,8 @@ export class Hub extends EventEmitter {
           evidenceHash: digest,
           method: "user-review",
         });
-        t.reason = undefined;
-        this.saveTask(t, "done");
+        current.reason = undefined;
+        this.saveTask(current, "done");
         this.store.event("task.accepted", t.id, { revision: t.revision });
       });
     } else if (action === "reconcile") {

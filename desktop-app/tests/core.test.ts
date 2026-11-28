@@ -1,4 +1,5 @@
 import { submitAgentForm } from "../src/shared/agent-form";
+import { resultArtifacts, resultEvidence } from "../src/shared/result-evidence";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, writeFile, readFile } from "node:fs/promises";
@@ -12,6 +13,7 @@ import {
   defaults,
   type Task,
   type Run,
+  type Artifact,
 } from "../src/shared/contracts";
 import { RpcError } from "../src/adapter/codex";
 
@@ -126,6 +128,10 @@ async function completed(hub: Hub, t: Task, text = "实际调查结果") {
     },
   });
   return hub.store.get<Run>("run", run.id)!;
+}
+function review(hub: Hub, run: Run) {
+  return { op: "task.control", action: "accept", id: run.taskId, revision: run.revision, runId: run.id,
+    evidenceHash: hash(resultEvidence(run, resultArtifacts(hub.store.all<Artifact>("artifact"), run))) };
 }
 test("runtime schemas reject unknown operations and dangerous implicit modes", () => {
   assert.throws(() => Request.parse({ op: "shell", command: "anything" }));
@@ -455,12 +461,35 @@ test("native success requires current evidence and user acceptance", async () =>
     const t = await created(f);
     const r = await completed(f.hub, t);
     assert.equal(f.hub.getTask(t.id).state, "verifying");
-    await assert.rejects(f.hub.control(t.id, "accept", t.revision, "wrong"));
-    await f.hub.control(t.id, "accept", t.revision, hash(r.response + r.diff));
+    const request = review(f.hub, r);
+    await assert.rejects(f.hub.request({ ...request, runId: undefined }), /结果版本已变化/);
+    await assert.rejects(f.hub.request({ ...request, evidenceHash: "wrong" }), /结果版本已变化/);
+    await f.hub.request(request);
     assert.equal(f.hub.getTask(t.id).state, "done");
   } finally {
     end(f);
   }
+});
+test("review rejects identical results from a different run before and during file verification", async () => {
+  const f = await fixture();
+  try {
+    const t = await created(f);
+    await writeFile(join(f.project, "result.md"), "fixture");
+    const old = await completed(f.hub, t);
+    const task = f.hub.getTask(t.id), open = review(f.hub, old);
+    assert.equal(resultArtifacts(f.hub.store.all<Artifact>("artifact"), old).length, 1);
+    const next = { ...old, id: "same-text-new-run", turnId: "next-turn" };
+    f.hub.store.put("run", next);
+    f.hub.store.put("task", { ...task, runId: next.id });
+    await assert.rejects(f.hub.request(open), /结果版本已变化/);
+    f.hub.store.put("task", task);
+    const inFlight = f.hub.request(open);
+    f.hub.store.put("task", { ...task, runId: next.id });
+    await assert.rejects(inFlight, /验收期间结果已变化/);
+    assert.equal(f.hub.store.all("acceptance").length, 0);
+    await f.hub.request(review(f.hub, next));
+    assert.equal(f.hub.store.all("acceptance")[0].runId, next.id);
+  } finally { end(f); }
 });
 test("terminal receipt fills missing result events once without late regressions", async () => {
   const f = await fixture();
@@ -1052,7 +1081,7 @@ test("command-created output is captured and altered output blocks acceptance", 
     await writeFile(join(f.project, "result.md"), "changed after completion");
     assert.equal((await f.hub.readArtifact(outputs[0].id)).content, "first");
     await assert.rejects(
-      f.hub.control(t.id, "accept", 1, hash(r.response + r.diff)),
+      f.hub.request(review(f.hub, r)), /产物已在外部修改/,
     );
   } finally {
     end(f);
@@ -1063,7 +1092,7 @@ test("changing accepted upstream goal invalidates an accepted downstream result"
   try {
     const a = await created(f);
     const ar = await completed(f.hub, a);
-    await f.hub.control(a.id, "accept", 1, hash(ar.response + ar.diff));
+    await f.hub.request(review(f.hub, ar));
     const b = await submitAgentForm(f.hub.request.bind(f.hub), {
       op: "task.create",
       profile: { model: "fixture", effort: "max" },
@@ -1078,7 +1107,7 @@ test("changing accepted upstream goal invalidates an accepted downstream result"
     for (let i = 0; i < 100 && f.hub.scheduling; i++)
       await new Promise((r) => setTimeout(r, 5));
     const br = await completed(f.hub, f.hub.getTask(b.id));
-    await f.hub.control(b.id, "accept", 1, hash(br.response + br.diff));
+    await f.hub.request(review(f.hub, br));
     await f.hub.request({
       op: "task.revise",
       id: a.id,

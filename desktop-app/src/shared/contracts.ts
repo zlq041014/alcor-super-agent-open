@@ -829,6 +829,7 @@ export const Request = z.discriminatedUnion("op", [
       ]),
       revision: z.number().int(),
       evidenceHash: z.string().optional(),
+      runId: id.optional(),
     })
     .strict(),
   z

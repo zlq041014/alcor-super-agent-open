@@ -498,7 +498,11 @@ async function main() {
                 if (drop) { drop = false; desktopOnline = false; return window.alcorResult(id, 'error', '测试回执丢失'); }
                 return value(events.at(-1).receipt);
               }
-              if (body.route === 'accept') { change('done', '已按原回合结果验收', { text: '同一回合的交付文字' }); return value(true); }
+              if (body.route === 'accept') {
+                fixture.acceptedEvidence = payload.evidenceHash;
+                change('done', '已按原回合结果验收', { text: '同一回合的交付文字' });
+                return value(true);
+              }
               if (body.route === 'artifact') return value(payload.artifact === 'md-deliverable'
                 ? { name: '交付.md', text: '## 已核对\n\n- 继续' } : { name: '按钮文案.txt', text: '继续' });
             }
@@ -764,7 +768,19 @@ async function main() {
     await page.getByRole('dialog').getByRole('heading', { name: '已核对' }).waitFor();
     await page.evaluate(() => { fixture.network(true); fixture.pc(true); window.alcorForeground(); });
     await page.getByRole('button', { name: '关闭' }).click();
+    const reviewButton = page.getByRole('button', { name: '核对无误，验收', exact: true });
+    const displayedEvidence = await reviewButton.getAttribute('data-v');
+    assert.equal(JSON.parse(displayedEvidence)[1], '0'.repeat(64));
+    await reviewButton.evaluate(el => {
+      const [id] = JSON.parse(el.dataset.v);
+      el.dataset.v = JSON.stringify([id, '9'.repeat(64)]);
+      el.click();
+    });
+    await page.getByText('回执已变化，请重新查看结果', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => fixture.acceptedEvidence), undefined);
+    await reviewButton.evaluate((el, ready) => { el.dataset.v = ready; }, displayedEvidence);
     await click('核对无误，验收');
+    await page.waitForFunction(() => fixture.acceptedEvidence === '0'.repeat(64));
     await page.getByText('已完成', { exact: true }).waitFor();
     await page.evaluate(() => fixture.conflict());
     await sync();

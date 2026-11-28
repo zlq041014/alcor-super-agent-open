@@ -390,6 +390,7 @@ test("手机文本产物只来自这次授权的回合，核对后的验收不�
     const events = async () => (await call(p, "pull", { after: 0 })).value as any[];
     const review = await until(async () => (await events()).find((e) => e.id === id && e.receipt.stage === "review"));
     const evidenceHash = review.receipt.evidenceHash;
+    assert.equal(review.receipt.runId, result.id);
     assert.deepEqual(review.receipt.artifacts, [{ id: artifact.id, name: artifact.name }]);
     const read = (artifact: string) => call(p, "artifact", { id, artifact, evidenceHash });
     assert.match((await read(unrelated.id)).error, /不属于当前回执/);
@@ -406,6 +407,9 @@ test("手机文本产物只来自这次授权的回合，核对后的验收不�
     h.store.put("task", { ...task, state: "verifying", runId: result.id });
     assert.equal((await call(p, "accept", { id, evidenceHash })).value, true);
     assert.equal(h.getTask(task.id).state, "done");
+    assert.equal(h.store.all("acceptance")[0].runId, result.id);
+    assert.equal((await call(p, "accept", { id, evidenceHash })).value, true);
+    assert.match((await call(p, "accept", { id, evidenceHash: "0".repeat(64) })).error, /回执已变化/);
   } finally {
     await desk.close();
     h.store.close();
