@@ -255,6 +255,7 @@ export interface TaskWake extends Entity {
   reason?: string;
 }
 export interface Run extends Entity {
+  decisionInputs?: RuleReference[];
   reuseInputs?: ReuseGrant[];
   graphAttempt?: GraphAttempt;
   loopRole?: "reviewer";
@@ -323,6 +324,7 @@ export interface Integration extends Entity {
   resolution?: "observed" | "unchanged";
 }
 export interface Message extends Entity {
+  decisionHistory?: true;
   ruleInputs?: RuleReference[];
   preferenceInput?: PreferenceReference;
   workRequestId?: string;
@@ -366,6 +368,7 @@ export interface RosterMember extends Entity {
   revision: number;
 }
 export interface AgentLine extends Entity {
+  decisionHistory?: true;
   ruleInputs?: RuleReference[];
   deliveryError?: string;
   work?: WorkStep;
@@ -432,7 +435,10 @@ export interface Memory extends Entity {
   enabled: boolean;
   deleted: boolean;
   source: string;
-  decision?: { agentId: string; lineIds: string[] };
+  decision?: { agentId: string; lineIds: string[]; heads?: number[]; versions?: {
+    revision: number; text: string; parents: number[]; selectedRevision?: number;
+  }[] };
+
   revision: number;
 }
 export type RuleReference = Pick<Memory, "id" | "revision">;
@@ -961,12 +967,15 @@ export const Request = z.discriminatedUnion("op", [
     .object({
       op: z.literal("memory.save"),
       id: id.optional(),
+      revision: z.number().int().positive().optional(),
       text: z.string().trim().min(1).max(6000),
       projectId: z.string(),
       enabled: z.boolean(),
     })
     .strict(),
   z.object({ op: z.literal("memory.delete"), id }).strict(),
+  z.object({ op: z.literal("decision.resolve"), id, projectId: id, revision: z.number().int().positive(),
+    heads: z.array(z.number().int().positive()).min(2).max(100), selectedRevision: z.number().int().positive() }).strict(),
   z
     .object({
       op: z.literal("approval"),

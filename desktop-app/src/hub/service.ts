@@ -95,7 +95,8 @@ import {
   verifiedDir,
 } from "./local-projects";
 import { localProjectLookupIntent, progressIntent } from "./project-intent";
-import { currentPromptHistory, currentRuleReferences, migrateProjectDecisions } from "./project-decisions";
+import { acceptedDecisionBasis, currentPromptHistory, currentRuleReferences, decisionHeads, historicalDecisionQuestion,
+  migrateProjectDecisions, relevantDecisionConflicts, resolveDecision, reviseDecision, usableRule } from "./project-decisions";
 import { AgentDesk } from "./agents";
 import { Launches, type Delegation } from "./launches";
 import { workTrace } from "./work-trace";
@@ -1219,10 +1220,15 @@ export class Hub extends EventEmitter {
         const old = r.id ? this.store.get<Memory>("memory", r.id) : undefined;
         if (r.id && (!old || old.deleted))
           throw new Error("该规则已删除，不能恢复旧版本");
+        if (old?.decision) {
+          if (decisionHeads(old).length > 1) throw new Error("有并列决定，请使用确认版本");
+          if (old.revision !== r.revision || old.projectId !== r.projectId)
+            throw new Error("项目决定或修订已变化，请重新核对");
+        }
         if (r.projectId && r.projectId !== old?.projectId)
           this.project(r.projectId);
         const m: Memory = {
-          ...(old || entity()),
+          ...(old?.decision ? reviseDecision(old, r.text, decisionHeads(old)) : old || entity()),
           text: redact(r.text),
           projectId: r.projectId,
           enabled: r.enabled,
@@ -1238,6 +1244,13 @@ export class Hub extends EventEmitter {
         this.changed();
         return m;
       }
+      case "decision.resolve": {
+        this.project(r.projectId);
+        const resolved = resolveDecision(this.store, r);
+        try { await this.invalidateMemory(resolved.projectId); }
+        finally { this.changed(); }
+        return resolved;
+      }
       case "memory.delete": {
         const m = this.store.get<Memory>("memory", r.id);
         if (!m) throw new Error("规则不存在");
@@ -1245,6 +1258,7 @@ export class Hub extends EventEmitter {
           m.deleted = true;
           m.enabled = false;
           m.text = "";
+          if (m.decision) m.decision = { agentId: m.decision.agentId, lineIds: m.decision.lineIds };
           m.revision++;
           this.store.put("memory", m);
           this.store.db
@@ -2318,8 +2332,7 @@ export class Hub extends EventEmitter {
       .all<Memory>("memory")
       .filter(
         (m) =>
-          m.enabled &&
-          !m.deleted &&
+          usableRule(m) &&
           (!m.projectId || m.projectId === projectId),
       );
   }
@@ -2423,6 +2436,8 @@ export class Hub extends EventEmitter {
       const baseline = await snapshotFiles(run.workPath);
       this.store.put("baseline", { id: run.id, ...baseline });
       const rules = this.rules(task.projectId);
+      run.decisionInputs = rules.filter(m => m.decision).map(({ id, revision }) => ({ id, revision }));
+      this.store.put("run", run);
       const methodVersion = this.methods.version(task.projectId);
       const memoryVersion = hash(
         JSON.stringify([...rules.map((m) => [m.id, m.revision]), ...this.methods.references(task.projectId)]),
@@ -3807,6 +3822,28 @@ export class Hub extends EventEmitter {
         progressIntent(text)
       )
         return askProject([], "local-route");
+      const decisionReply = () => {
+        if (historicalDecisionQuestion(text)) {
+          const tasks = task ? [task] : projectId ? this.store.all<Task>("task", projectId) : [];
+          return acceptedDecisionBasis(this.store, tasks);
+        }
+        const scope = task?.projectId ?? projectId;
+        const conflicts = scope ? relevantDecisionConflicts(this.store, scope, text) : [];
+        if (conflicts.length) return conflicts.map(({ variants }) => "这项决定有并列版本，请确认沿用哪一项：" +
+          variants.map((v) => "「" + v + "」").join("、")).join("\n");
+      };
+      const saveDecisionReply = (content: string) => {
+        this.store.tx(() => {
+          const reply = this.message("assistant", content, taskId);
+          this.store.put("message", { ...reply, projectId, workRequestId: id, decisionHistory: true });
+          this.store.put("message", { ...this.store.get<Message>("message", id), projectId, status: "answered" });
+          this.store.put("invocation", { ...inv, status: "local-route" });
+        });
+        this.changed();
+        return { saved: true, proposal: null, projectId };
+      };
+      const grounded = decisionReply();
+      if (grounded) return saveDecisionReply(grounded);
       const load = async (target: string) => {
         const project = this.project(target);
         evidence = await readProgress(
@@ -3860,7 +3897,7 @@ export class Hub extends EventEmitter {
       const decisions = this.store
         .all<Memory>("memory")
         .filter((m) =>
-          m.decision && m.enabled && !m.deleted &&
+          m.decision && usableRule(m) &&
           projects.some((p) => p.id === m.projectId) && (!projectId || m.projectId === projectId)
         )
         .slice(-16);
@@ -4006,6 +4043,8 @@ export class Hub extends EventEmitter {
           };
           this.store.put("invocation", inv);
           projectId = target.id;
+          const grounded = decisionReply();
+          if (grounded) return saveDecisionReply(grounded);
           await load(projectId);
           context.progressEvidence = evidence;
           context.lookupCompleted = true;
@@ -4402,6 +4441,7 @@ export class Hub extends EventEmitter {
             data.text = "";
             data.deleted = true;
             data.enabled = false;
+            if (data.decision) data.decision = { agentId: data.decision.agentId, lineIds: data.decision.lineIds };
           }
           if (
             row.kind === "artifact" &&

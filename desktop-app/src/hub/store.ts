@@ -98,11 +98,12 @@ export class Store {
       .get(kind, id) as any;
     return row ? JSON.parse(row.data) : undefined;
   }
-  all<T = any>(kind: string): T[] {
-    return this.db
-      .prepare("SELECT data FROM records WHERE kind=? ORDER BY updated ASC")
-      .all(kind)
-      .map((r: any) => JSON.parse(r.data));
+  all<T = any>(kind: string, projectId?: string): T[] {
+    const rows = projectId === undefined
+      ? this.db.prepare("SELECT data FROM records WHERE kind=? ORDER BY updated ASC").all(kind)
+      : this.db.prepare("SELECT data FROM records WHERE kind=? AND COALESCE(json_extract(data,'$.projectId'),'')=? ORDER BY updated ASC")
+        .all(kind, projectId);
+    return rows.map((r: any) => JSON.parse(r.data));
   }
   put(kind: string, data: any) {
     this.db

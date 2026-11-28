@@ -44,7 +44,8 @@ import type { Hub } from "./service";
 import { defaultProfile, type ModelProfile } from "../shared/contracts";
 import { workTrace } from "./work-trace";
 import { findLocalNames, readLocalFolder } from "./file-search";
-import { currentPromptHistory, explicitProjectDecision } from "./project-decisions";
+import { acceptedDecisionBasis, currentPromptHistory, decisionHeads, decisionInput, historicalDecisionQuestion,
+  relevantDecisionConflicts, replacementTargets, reviseDecision } from "./project-decisions";
 
 const norm = (s: string) =>
   s
@@ -802,8 +803,9 @@ export class AgentDesk {
       throw new Error("讨论 Agent 正在处理上一条消息，请稍后补充");
     this.busy.add(a.id);
     try {
+      const change = decisionInput(text), historical = historicalDecisionQuestion(text);
       const pending = this.store.get("agent-pending-handoff", a.id);
-      if (pending && Date.now() - Date.parse(pending.at) < 10 * 60000) {
+      if (!change && !historical && pending && Date.now() - Date.parse(pending.at) < 10 * 60000) {
         if (
           /(?:先别|不要做|不做了|暂停|取消|先讨论|暂不|先不|先聊|再决定)/.test(
             text,
@@ -824,7 +826,7 @@ export class AgentDesk {
           );
         }
       }
-      if (startIntent(text)) return await this.handoff(a, text, id);
+      if (!change && !historical && startIntent(text)) return await this.handoff(a, text, id);
       const history = this.lines(a.id).filter(
         (l) =>
           l.id !== "user:" + id &&
@@ -833,8 +835,15 @@ export class AgentDesk {
       );
       if (!this.store.get("agent-line", "user:" + id))
         line(this.store, a.id, "user", "你", text, { id: "user:" + id });
+      if (historical && !change) {
+        const tasks = this.store.all<Agent>("agent", a.projectId).filter((x) => x.parentAgentId === a.id && x.taskId)
+          .map((x) => this.hub.getTask(x.taskId!));
+        line(this.store, a.id, "assistant", "历史验收依据", acceptedDecisionBasis(this.store, tasks), { decisionHistory: true });
+        this.hub.changed();
+        return { saved: true };
+      }
       if (
-        !/[?？]|如果|先讨论|暂不转告/.test(text) &&
+        !change && !/[?？]|如果|先讨论|暂不转告/.test(text) &&
         /也要|改成|改为|只测|补充给|转告执行|追加要求|把范围缩小|也需要/.test(
           text,
         )
@@ -897,12 +906,21 @@ export class AgentDesk {
           return { saved: true };
         }
       }
-      if (explicitProjectDecision(text)) {
-        const decision: Memory = {
+      const lineId = "user:" + id;
+      if (change && !this.store.all<Memory>("memory", a.projectId).some((m) => m.decision?.lineIds.includes(lineId))) {
+        const targets = change.replaces ? replacementTargets(this.store, a.projectId, change.replaces) : [];
+        if (change.replaces && targets.length !== 1) {
+          const original = this.store.get<AgentLine>("agent-line", lineId)!;
+          this.store.put("agent-line", { ...original, status: "failed" });
+          line(this.store, a.id, "assistant", "待核对决定", "未能唯一定位要替换的旧决定。请指明原决定后再提交，本次未更改规则。");
+          this.hub.changed();
+          return { saved: true };
+        }
+        const decision: Memory = targets[0] ? reviseDecision(targets[0].rule, change.text, [targets[0].revision], lineId) : {
           ...entity(),
           id: "decision:" + id,
           projectId: a.projectId,
-          text: redact(text),
+          text: redact(change.text),
           enabled: true,
           deleted: false,
           source: "项目讨论中的明确决定",
@@ -911,9 +929,16 @@ export class AgentDesk {
         };
         this.store.tx(() => {
           this.store.put("memory", decision);
-          this.note("已保存项目决定，可在规则页核对。", a, decision.id);
+          this.note(decisionHeads(decision).length > 1 ? "同一旧决定有两个修改，等待选择。" : "已保存项目决定，可在规则页核对。", a, decision.id);
         });
         await this.hub.invalidateMemory(a.projectId);
+      }
+      const conflicts = relevantDecisionConflicts(this.store, p.id, text);
+      if (conflicts.length) {
+        line(this.store, a.id, "assistant", "待选择的决定", conflicts.map(({ variants }) =>
+          "这项决定有并列版本，请确认沿用哪一项：" + variants.map((value) => "「" + value + "」").join("、")).join("\n"), { decisionHistory: true });
+        this.hub.changed();
+        return { saved: true };
       }
       this.store.put("agent", {
         ...this.agent(a.id),
@@ -1021,6 +1046,8 @@ export class AgentDesk {
     );
     if (!preview && !history.some((x) => x.label !== "开工指令"))
       throw new Error("这场讨论还没有内容。先说具体目标，再交给执行 Agent。");
+    const relevant = relevantDecisionConflicts(this.store, a.projectId, text + "\n" + history.slice(-14).map((x) => x.text).join("\n"));
+    if (relevant.length) throw new Error("本次交接涉及尚未确认的决定，请先核对并列版本");
     const rules = this.hub.rules(a.projectId);
     const decisions = rules
       .slice(-12)

@@ -81,6 +81,7 @@ import { MobileDelivery } from "./mobile-delivery";
 import { RecordReuse, ReuseLibrary, SaveReuse } from "./reuse-items";
 import { WorkRecord, messageWork } from "./work-record";
 import { ProfilePicker, effortName, executorProfileIssue } from "./model-profile";
+import { DecisionResolution } from "./decision-resolution";
 import {
   AdvanceSelect,
   GraphDetails,
@@ -1694,7 +1695,9 @@ function App() {
                     </button>
                   }
                 />
-                {s.memories.map((m) => (
+                {s.memories.map((m) => {
+                  const conflicted = (m.decision?.heads?.length ?? 0) > 1;
+                  return (
                   <article
                     key={m.id}
                     className={`memory-card ${!m.enabled ? "disabled" : ""}`}
@@ -1707,17 +1710,21 @@ function App() {
                           : "全局规则"}
                       </span>
                       <span className="badge">
-                        {m.enabled ? "生效中" : "已停用"}
+                        {conflicted ? "待确认" : m.enabled ? "生效中" : "已停用"}
                       </span>
-                      <button
+                      {!conflicted && <button
                         onClick={() =>
                           setPreview({ type: "memory-edit", memory: m })
                         }
                       >
                         编辑
-                      </button>
+                      </button>}
                     </div>
-                    <p>{m.text}</p>
+                    {!conflicted && <p>{m.text}</p>}
+                    <DecisionResolution memory={m} confirm={async choice => {
+                      try { return await api.request({ op: "decision.resolve", ...choice }); }
+                      finally { await refresh(); }
+                    }} />
                     <small>
                       {m.source} · v{m.revision}
                     </small>
@@ -1725,12 +1732,13 @@ function App() {
                       {m.decision && s.agents.some((a) => a.id === m.decision?.agentId) && (
                         <button onClick={() => openAgent(m.decision!.agentId)}>查看来源讨论</button>
                       )}
-                      <button
+                      {!conflicted && <button
                         onClick={() =>
                           void run(() =>
                             api.request({
                               op: "memory.save",
                               id: m.id,
+                              ...(m.decision ? { revision: m.revision } : {}),
                               text: m.text,
                               projectId: m.projectId,
                               enabled: !m.enabled,
@@ -1739,7 +1747,7 @@ function App() {
                         }
                       >
                         {m.enabled ? "停用" : "启用"}
-                      </button>
+                      </button>}
                       <button
                         className="danger-text"
                         onClick={() =>
@@ -1750,7 +1758,8 @@ function App() {
                       </button>
                     </div>
                   </article>
-                ))}
+                  );
+                })}
                 <section aria-label="答复偏好">
                   <h2>答复偏好</h2>
                   <label className="check-label">
@@ -4592,6 +4601,7 @@ function Preview({
       <label>
         作用范围
         <select
+          disabled={!!v.memory?.decision}
           value={projectId}
           onChange={(e) => setProjectId(e.target.value)}
         >
@@ -4626,6 +4636,7 @@ function Preview({
               await api.request({
                 op: "memory.save",
                 id: v.memory?.id,
+                ...(v.memory?.decision ? { revision: v.memory.revision } : {}),
                 text,
                 projectId,
                 enabled,

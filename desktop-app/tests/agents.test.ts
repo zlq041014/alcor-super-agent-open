@@ -231,6 +231,7 @@ test("explicit project decisions are manageable and stale discussion content can
     await h.request({
       op: "memory.save",
       id: rule.id,
+      revision: rule.revision,
       text: rule.text,
       projectId: rule.projectId,
       enabled: false,
