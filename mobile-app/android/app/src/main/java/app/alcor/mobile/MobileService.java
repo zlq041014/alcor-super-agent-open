@@ -211,7 +211,7 @@ public final class MobileService {
             case "desktop": {
                 JSONObject peer = secrets.read("peers").getJSONObject(input.getString("id"));
                 String route = input.getString("route");
-                if (!route.matches("catalog|agents|history|pull|push|command|accept|artifact|reply"))
+                if (!route.matches("catalog|agents|history|pull|push|command|accept|artifact|delivery|reply"))
                     throw new IllegalArgumentException("不支持的电脑操作");
                 return Network.desktop(peer, route, input.getJSONObject("body"));
             }

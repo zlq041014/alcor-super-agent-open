@@ -19,6 +19,82 @@ function fileInfo(command: { id: string; projectId: string; version: string; exp
     expiresAt: command.expiresAt, name, slot, count, mode };
 }
 
+test("桌面成果只由选中的手机补取，重新授权不会恢复旧分享", async () => {
+  const fixtures = resolve(".test-data");
+  await mkdir(fixtures, { recursive: true });
+  const root = await mkdtemp(join(fixtures, "mobile-delivery-"));
+  const folder = join(root, "project"), state = join(root, "state");
+  await mkdir(folder);
+  const hub = new Hub(state);
+  hub.tick = async () => {};
+  let desk = new MobileDesk(hub, 0, true);
+  try {
+    const project = await hub.request({ op: "project.add", path: folder, name: "成果样本" });
+    const otherFolder = join(root, "other");
+    await mkdir(otherFolder);
+    const otherProject = await hub.request({ op: "project.add", path: otherFolder, name: "其他项目" });
+    const pair = async (projectId: string) => {
+      const invite = await mobileInvite(desk, projectId);
+      return { ...invite, token: (await call(invite, "pair", {})).pair.token };
+    };
+    const a = await pair(project.id), b = await pair(project.id), outside = await pair(otherProject.id);
+    const proposal = await hub.request({ op: "task.create", requestId: "made-on-desktop", value: {
+      projectId: project.id, title: "桌面交付标题", goal: "本地成果夹具", mode: "read",
+    } });
+    const created = await hub.request({ op: "agent.launch.confirm", id: proposal.launchId, profile: { model: "fixture", effort: "default" } });
+    const task = hub.getTask(created.id);
+    const run: Run = { ...entity(), taskId: task.id, revision: task.revision, commandId: randomUUID(), state: "ended", outcome: "completed",
+      response: "第一版交付正文", diff: "", startedAt: stamp(), workPath: folder };
+    hub.store.put("run", run);
+    hub.store.put("task", { ...task, runId: run.id, state: "verifying" });
+    const makeFile = async (name: string, text: string, runId = run.id) => {
+      const path = join(folder, name);
+      await writeFile(path, text);
+      const art: Artifact = { ...entity(), taskId: task.id, runId, path, name, kind: "text", origin: "result",
+        size: Buffer.byteLength(text), hash: hash(text), status: "ready" };
+      return hub.store.put("artifact", art);
+    };
+    const file = await makeFile("一.txt", "选中的原文"), unused = await makeFile("二.txt", "未选文本");
+    const history = await makeFile("旧.txt", "其他回合", randomUUID());
+    const choices = () => desk.local({ action: "delivery-devices", taskId: task.id, runId: run.id }) as Promise<{
+      evidenceHash: string; devices: { id: string; grantVersion: string }[]; artifacts: { id: string }[];
+    }>;
+    const ready = await choices(), person = ready.devices.find(d => d.id === hash(a.token))!;
+    assert.deepEqual(ready.devices.map(d => d.id).sort(), [hash(a.token), hash(b.token)].sort());
+    assert.deepEqual(ready.artifacts.map(f => f.id).sort(), [file.id, unused.id].sort());
+    const id = randomUUID(), send = { action: "delivery-send", id, deviceId: person.id, taskId: task.id, runId: run.id,
+      grantVersion: person.grantVersion, evidenceHash: ready.evidenceHash, artifacts: [file.id] };
+    await assert.rejects(desk.local({ ...send, artifacts: [history.id] }), /本回合/);
+    await assert.rejects(desk.local({ ...send, deviceId: hash(outside.token) }), /共享范围/);
+    await assert.rejects(desk.local({ ...send, evidenceHash: "0".repeat(64) }), /交付内容已变化/);
+    const saved = await desk.local(send);
+    assert.deepEqual(await desk.local(send), saved);
+    const replacement: Run = { ...run, id: randomUUID(), response: "第二版交付正文" };
+    hub.store.put("run", replacement);
+    hub.store.put("task", { ...task, runId: replacement.id, state: "verifying" });
+    await assert.rejects(desk.local({ ...send, id: randomUUID() }), /交付版本已变化/);
+    await desk.close();
+    desk = new MobileDesk(hub, new URL(a.url).port ? Number(new URL(a.url).port) : 443, true);
+    await desk.startSaved();
+    const catalog = async (phone: typeof a) => (await call(phone, "catalog", {})).value.deliveries;
+    assert.deepEqual((await catalog(a)).map((x: { id: string }) => x.id), [id]);
+    assert.deepEqual(await catalog(b), []);
+    assert.match((await call(b, "delivery", { id })).error, /共享范围/);
+    assert.equal((await call(a, "delivery", { id })).value.text, run.response);
+    assert.deepEqual((await call(a, "delivery", { id, artifact: file.id })).value, { name: file.name, text: "选中的原文", textTruncated: false });
+    assert.match((await call(a, "delivery", { id, artifact: unused.id })).error, /未被选入/);
+    await writeFile(file.path, "文件已变动");
+    assert.match((await call(a, "delivery", { id, artifact: file.id })).error, /记录版本不同/);
+    assert.deepEqual((await call(a, "pull", { after: 0 })).value, []);
+    assert.equal(hub.store.all("task").length, 1);
+    await desk.local({ action: "revoke", id: person.id });
+    assert.equal((await call(a, "delivery", { id })).code, 401);
+    const fresh = await pair(project.id);
+    assert.deepEqual(await catalog(fresh), []);
+    assert.match((await call(fresh, "delivery", { id })).error, /共享范围/);
+  } finally { await desk.close(); hub.store.close(); }
+});
+
 test("手机 Agent 结构仅投影共享项目的账本节点和本设备回执", async () => {
   const root = resolve(".test-data");
   await mkdir(root, { recursive: true });

@@ -74,6 +74,7 @@ import {
 } from "../shared/contracts";
 import { AgentTree, AgentWorkspace, stateOf } from "./agents";
 import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
+import { MobileDelivery } from "./mobile-delivery";
 import { WorkRecord, messageWork } from "./work-record";
 import { ProfilePicker, effortName } from "./model-profile";
 import {
@@ -2637,6 +2638,7 @@ function TaskDetail({
                 <ExternalLink size={14} />
               </button>
             ))}
+            {r && <MobileDelivery key={r.id} task={t} run={r} files={resultArtifacts(artifacts, r)} request={api.mobile} />}
             {r?.isolation && (
               <div className="info-box vertical">
                 <p>独立工作区：{r.workPath}</p>

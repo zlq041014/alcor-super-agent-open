@@ -219,7 +219,22 @@ export function recordDecision(d, text, quote, existing, parents = existing?.hea
   return record;
 }
 
+const deliveriesByPeer = new Map();
+export function sharedDeliveries(data) {
+  return [...deliveriesByPeer].flatMap(([peer, rows]) => data.peers[peer]?.online
+    ? rows.filter(row => data.projects[desktopKey(peer, row.projectId)]?.shared).map(row => ({ ...row, peer })) : []);
+}
+
+export async function readDelivery(data, peer, id, artifact) {
+  const available = () => sharedDeliveries(data).some(item => item.peer === peer && item.id === id);
+  if (!available()) throw new Error('成果不再可用，连接电脑后刷新');
+  const value = await desktop(peer, 'delivery', { id, ...(artifact ? { artifact } : {}) });
+  if (!available()) throw new Error('成果已不在共享范围');
+  return value;
+}
+
 function catalog(data, peer, value) {
+  deliveriesByPeer.set(peer, value.deliveries ?? []);
   const active = new Set(value.projects.map((p) => desktopKey(peer, p.id)));
   for (const [key, p] of Object.entries(data.projects)) if (p.peer === peer) {
     p.shared = active.has(key);
@@ -247,6 +262,7 @@ function catalog(data, peer, value) {
 }
 
 function forgetSharedProjects(data, peer) {
+  deliveriesByPeer.delete(peer);
   for (const [key, p] of Object.entries(data.projects)) if (p.peer === peer) {
     p.shared = false;
     if (data.agentTrees) delete data.agentTrees[key];

@@ -1,3 +1,4 @@
+import { sharedDeliveries } from './model.js';
 import { A, esc, ic } from './icons.js';
 import { diagramMarkup, reading } from './reading.js';
 import { slidesSheet } from './features/slides.js';
@@ -358,6 +359,14 @@ export function view(data, ui) {
   const x = data.dialogs[sh.dialog ?? ui.current];
   const w = data.work[sh.value];
   const sheet = (title, body, cls = '') => screen + wrap(title, body, sh.error, cls);
+  if (!life && ['shared-delivery', 'shared-delivery-file'].includes(sh.type)) {
+    if (!sharedDeliveries(data).some(item => item.id === sh.id && item.peer === sh.peer))
+      return sheet('成果不可用', foot('连接电脑后刷新，或核对项目是否仍在共享。'));
+    const { result } = sh;
+    return sheet('电脑发来的成果', card(head('receipt', result.title ?? result.name, result.revision ? '第 ' + result.revision + ' 版' : '') +
+      `<div class="reading">${reading(result.text)}</div>` + (result.textTruncated ? foot('仅展示前段正文。') : '') +
+      (result.artifacts ?? []).map(f => choice('receipt', f.name, '文本产物', 'shared-delivery-file', JSON.stringify([sh.peer, sh.id, f.id]))).join('')));
+  }
   const projects = Object.values(data.projects).filter((p) => p.shared && peers.some((x) => x.id === p.peer));
   const projectOptions = (none, selected) => option('', none, !selected) + projects.map((p) =>
     option(p.key, p.name + ' · ' + data.peers[p.peer]?.name, p.key === selected)).join('');
@@ -423,7 +432,10 @@ export function view(data, ui) {
       ...items.map((w) => agenda('handoff', (unreadWork(w) ? '未读 · ' : '') +
         (w.receipt?.question ? '等你回答' : stage[w.stage][0]), w.goal, targetLabel(w),
         w.receipt?.question ? 'question' : 'work', w.id, unreadWork(w)))];
-    return sheet('待处理', (cards.join('') || `<div class="empty">${art('all-clear')}没有待处理事项</div>`) +
+    const incoming = life ? [] : sharedDeliveries(data).sort((a, b) => b.at.localeCompare(a.at));
+    return sheet('待处理', (cards.join('') || (!incoming.length ? `<div class="empty">${art('all-clear')}没有待处理事项</div>` : '')) +
+      (incoming.length ? section('电脑发来的成果', incoming.map(item => choice('receipt', item.title, '第 ' + item.revision + ' 版',
+        'shared-delivery', JSON.stringify([item.peer, item.id]))).join('')) : '') +
       row(button('通知设置', 'work-notice-open', '', 'text')));
   }
   if (sh.type === 'pet-details') {

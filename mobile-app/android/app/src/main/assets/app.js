@@ -1,3 +1,4 @@
+import { readDelivery } from './model.js';
 import { esc } from './icons.js';
 import { addMessage, agentDialog, attachProject, authorize, autoTitle, browse, chosen, copy, decisions, listDialogs, load, locate, log, namedProjects, native,
   newChat, newDiscussion, now, online, openWork, persist, readArtifact, recordDecision, refreshDialog, renameChat, respond, stateIssue,
@@ -121,6 +122,11 @@ function show(type, options = {}) {
   render();
 }
 function close() {
+  if (['shared-delivery', 'shared-delivery-file'].includes(ui.sheet?.type)) {
+    ui.sheet = ui.sheet.back;
+    render();
+    return;
+  }
   if (['diagram', 'slides'].includes(ui.sheet?.type)) {
     ui.sheet = ui.sheet.back;
     render();
@@ -1969,6 +1975,17 @@ app.addEventListener('click', (e) => {
         const allowed = await native('workNotice.status');
         if (ui.mode === WORK && ui.sheet === previous)
           show('work-notices', { value: allowed, from: previous?.type });
+        break;
+      }
+      case 'shared-delivery': case 'shared-delivery-file': {
+        if (mode !== WORK) break;
+        const [peer, id, artifact] = JSON.parse(v);
+        const back = ui.sheet;
+        button.disabled = true;
+        try {
+          const result = await readDelivery(data, peer, id, artifact);
+          if (ui.mode === WORK && ui.sheet === back) show(act, { peer, id, result, back });
+        } finally { button.disabled = false; }
         break;
       }
       case 'work-notice-system':

@@ -48,12 +48,17 @@ const peerRequest = z.discriminatedUnion("route", [
   z.object({ route: z.literal("command"), value: command }).strict(),
   z.object({ route: z.literal("accept"), id: uuid, evidenceHash: z.string().length(64) }).strict(),
   z.object({ route: z.literal("artifact"), id: uuid, artifact: id, evidenceHash: z.string().length(64) }).strict(),
+  z.object({ route: z.literal("delivery"), id: uuid, artifact: id.optional() }).strict(),
   z.object({ route: z.literal("reply"), id: uuid, question: id, answers: z.record(z.string().trim().min(1).max(3000)) }).strict(),
 ]);
+const deviceKey = z.string().regex(/^[a-f0-9]{64}$/);
 const localRequest = z.discriminatedUnion("action", [
   z.object({ action: z.literal("status") }).strict(),
   z.object({ action: z.literal("invite"), address: id, projects: z.array(id).min(1).max(8), name: z.string().trim().min(1).max(60) }).strict(),
   z.object({ action: z.literal("revoke"), id: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+  z.object({ action: z.literal("delivery-devices"), taskId: id, runId: id }).strict(),
+  z.object({ action: z.literal("delivery-send"), id: uuid, deviceId: deviceKey, taskId: id, runId: id,
+    evidenceHash: deviceKey, grantVersion: deviceKey, artifacts: z.array(id).max(8) }).strict(),
   z.object({ action: z.literal("off") }).strict(),
   z.object({ action: z.literal("decision"), discussion: id, value: decisionInput }).strict(),
 ]);
@@ -74,6 +79,10 @@ type Receipt = {
   question?: { id: string; expiresAt: string; fields: { id: string; question: string; options: string[] }[] };
 };
 type Work = { id: string; device: string; data: Command; phase: "queued" | "sent" | "failed"; error?: string; taskId?: string; accepted?: boolean; last?: Receipt };
+type Delivery = { id: string; deviceId: string; projectId: string; taskId: string; runId: string; revision: number;
+  title: string; at: string; text: string; textTruncated: boolean; grant: string; epoch: string;
+  evidenceHash: string; artifacts: { id: string; name: string; hash: string }[] };
+const deliverySummary = ({ id, projectId, title, revision, at }: Delivery) => ({ id, projectId, title, revision, at });
 const token = () => randomBytes(32).toString("base64url");
 const materialId = (request: string, slot: number) => `${request}:${slot}`;
 const addresses = () => Object.values(networkInterfaces()).flatMap((list) =>
@@ -211,6 +220,43 @@ export class MobileDesk {
     return project;
   }
 
+  private deliveryResult(taskId: string, runId: string) {
+    const task = this.h.getTask(taskId);
+    const project = this.h.project(task.projectId);
+    const run = this.h.store.get<Run>("run", runId);
+    if (task.runId !== runId || run?.taskId !== task.id || run.revision !== task.revision ||
+        run.state !== "ended" || run.outcome !== "completed" || !run.response ||
+        !["verifying", "done"].includes(task.state)) throw new Error("交付版本已变化，请重新打开结果");
+    const files = resultArtifacts(this.h.store.all<Artifact>("artifact"), run);
+    return { task, project, run, files, evidenceHash: hash(resultEvidence(run, files)) };
+  }
+
+  private deliveryAllowed(device: Device, delivery: Delivery, project: Project | undefined, epoch: string) {
+    return project && !project.removed && project.available !== false && device.id === delivery.deviceId && !device.revoked &&
+      device.grants[project.id] === this.projectBinding(project) && delivery.grant === "" &&
+      epoch === delivery.epoch;
+  }
+
+  private deliveryGrant(device: Device, project: Project) {
+    return hash(JSON.stringify([device.id, device.grants[project.id], this.epoch()]));
+  }
+
+  private async openDelivery(device: Device, id: string, artifact?: string) {
+    const delivery = this.ledger().get<Delivery>("mobile-delivery", id);
+    if (!delivery || !this.deliveryAllowed(device, delivery, this.h.store.get<Project>("project", delivery.projectId), this.epoch()))
+      throw new Error("这份成果不在此手机的当前共享范围");
+    if (!artifact) return { ...deliverySummary(delivery), text: delivery.text, textTruncated: delivery.textTruncated,
+      artifacts: delivery.artifacts.map(({ id, name }) => ({ id, name })) };
+    const file = delivery.artifacts.find(file => file.id === artifact);
+    if (!file) throw new Error("这份产物未被选入分享");
+    const read = await this.h.readArtifact(artifact);
+    if (this.h.restoring || !this.deliveryAllowed(device, delivery, this.h.store.get<Project>("project", delivery.projectId), this.epoch()))
+      throw new Error("共享权限已变化，请重新打开成果");
+    if (read.hash !== file.hash || read.runId !== delivery.runId || read.taskId !== delivery.taskId || read.kind !== "text" || read.content === null)
+      throw new Error("产物已变化，无法打开原分享版本");
+    return { name: file.name, text: read.content.slice(0, 12000), textTruncated: read.content.length > 12000 };
+  }
+
   private discussion(projectId: string, discussion: string) {
     const a = this.h.desk.agent(discussion);
     if (a.kind !== "discussion" || a.projectId !== projectId) throw new Error("讨论不属于这个项目");
@@ -236,6 +282,42 @@ export class MobileDesk {
       const current = this.h.store.get<Decision>("mobile-decision", r.value.id);
       if (current?.discussion !== r.discussion) throw new Error("请先在手机保存并同步这项决定");
       return this.mergeDecision(r.discussion, r.value, "电脑");
+    }
+    if (r.action === "delivery-devices") {
+      const { project, files, evidenceHash } = this.deliveryResult(r.taskId, r.runId);
+      const devices = this.store?.all<Device>("mobile-device") ?? [];
+      return { evidenceHash, devices: devices.filter(d => !d.revoked && d.grants[project.id] === this.projectBinding(project))
+        .map(d => ({ id: d.id, name: d.name, grantVersion: this.deliveryGrant(d, project) })),
+        artifacts: files.filter(f => f.kind === "text").map(({ id, name }) => ({ id, name })) };
+    }
+    if (r.action === "delivery-send") {
+      const store = this.ledger();
+      const device = store.get<Device>("mobile-device", r.deviceId);
+      if (!device || device.revoked) throw new Error("这台手机未配对或已撤销配对");
+      const delivery = store.get<Delivery>("mobile-delivery", r.id);
+      if (delivery) {
+        if (delivery.deviceId !== r.deviceId || delivery.taskId !== r.taskId || delivery.runId !== r.runId ||
+            delivery.evidenceHash !== r.evidenceHash || JSON.stringify(delivery.artifacts.map(f => f.id)) !== JSON.stringify(r.artifacts) ||
+            !this.deliveryAllowed(device, delivery, this.h.store.get<Project>("project", delivery.projectId), this.epoch()))
+          throw new Error("分享请求或授权已变化，请重新核对");
+        return deliverySummary(delivery);
+      }
+      const { task, project, run, files, evidenceHash } = this.deliveryResult(r.taskId, r.runId);
+      this.project(device, project.id);
+      if (this.deliveryGrant(device, project) !== r.grantVersion) throw new Error("手机的项目授权已变化，请重新选择");
+      if (r.evidenceHash !== evidenceHash) throw new Error("交付内容已变化，请重新打开结果");
+      if (new Set(r.artifacts).size !== r.artifacts.length) throw new Error("同一产物不能重复选择");
+      const artifacts = r.artifacts.map(id => {
+        const f = files.find(f => f.id === id && f.kind === "text");
+        if (!f) throw new Error("只能选择本回合的文本产物");
+        return { id: f.id, name: redact(f.name), hash: f.hash };
+      });
+      const text = redact(run.response);
+      const value: Delivery = { id: r.id, deviceId: device.id, projectId: project.id, taskId: task.id, runId: run.id,
+        revision: run.revision, title: redact(task.title), at: stamp(), text: text.slice(0, 16000), textTruncated: text.length > 16000,
+        grant: "", epoch: this.epoch(), evidenceHash, artifacts };
+      store.put("mobile-delivery", value);
+      return deliverySummary(value);
     }
     const store = this.ledger();
     if (r.action === "off") {
@@ -269,7 +351,7 @@ export class MobileDesk {
       res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
       res.end(JSON.stringify(data));
     };
-    const route = /^\/mobile\/v1\/(pair|catalog|agents|history|pull|push|command|accept|artifact|reply|material)$/.exec(req.url ?? "")?.[1];
+    const route = /^\/mobile\/v1\/(pair|catalog|agents|history|pull|push|command|accept|artifact|delivery|reply|material)$/.exec(req.url ?? "")?.[1];
     if (!route || req.method !== (route === "material" ? "PUT" : "POST")) { send(404, {}); return; }
     const auth = /^Bearer ([A-Za-z0-9_-]{43})$/.exec(req.headers.authorization ?? "")?.[1];
     if (!auth) { send(401, {}); return; }
@@ -336,6 +418,7 @@ export class MobileDesk {
       });
     }
     if (r.route === "command") return this.queue(device, r.value);
+    if (r.route === "delivery") return this.openDelivery(device, r.id, r.artifact);
     const work = this.ledger().get<Work>("mobile-work", "mobile:" + r.id);
     if (!work || work.device !== device.id) throw new Error("找不到这台手机的原请求");
     this.project(device, work.data.projectId);
@@ -383,9 +466,20 @@ export class MobileDesk {
       });
     const groups = native ? await Promise.all(projects.flatMap((p) => (["codex", "dsh"] as const)
       .map((backend) => this.listNative(p.id, backend)))) : undefined;
+    const byId = new Map(projects.map(p => [p.id, p]));
+    const epoch = this.epoch();
+    const deliveries = this.ledger().db.prepare(`SELECT json_remove(data,'$.text','$.artifacts') AS data FROM records
+      WHERE kind='mobile-delivery' AND json_extract(data,'$.deviceId')=? AND json_extract(data,'$.epoch')=?
+      ORDER BY updated DESC`).iterate(device.id, epoch);
+    const received = [];
+    for (const row of deliveries) {
+      const d = JSON.parse(String(row.data)) as Delivery;
+      if (this.deliveryAllowed(device, d, byId.get(d.projectId), epoch)) received.push(deliverySummary(d));
+      if (received.length === 30) break;
+    }
     return { at: stamp(), projects: projects.map((p) => ({
       id: p.id, name: p.name, version: this.projectVersion(p), backend: this.h.settings().executorBackend,
-    })), discussions, groups };
+    })), discussions, groups, deliveries: received };
   }
 
   private listNative(projectId: string, backend: "codex" | "dsh") {
