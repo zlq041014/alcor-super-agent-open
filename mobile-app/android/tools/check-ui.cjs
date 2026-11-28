@@ -312,6 +312,8 @@ async function main() {
               sessionStorage.setItem('settings', JSON.stringify(settings));
               return answer(id, settings);
             }
+            if (action === 'chat.begin') return answer(id, { id: 'fixture-attachment-turn', model: settings.model, officialSearch: settings.officialSearch });
+            if (action === 'chat.check' || action === 'chat.end') return answer(id, true);
             if (action === 'chat') {
               chat = body.messages;
               window.fixture.chatFiles = body.files;
@@ -323,6 +325,16 @@ async function main() {
               const toolResult = [...body.messages].reverse().find((m) => m.role === 'tool')?.content;
               const usage = { prompt_tokens: 1234, prompt_cache_hit_tokens: 1000, prompt_cache_miss_tokens: 234,
                 completion_tokens: 56, total_tokens: 1290, completion_tokens_details: { reasoning_tokens: 12 } };
+              if (lastUser.includes('查汇率后总结要点')) {
+                (window.fixture.attachmentPackets ??= []).push({ turn: body.turn, files: body.files, toolResult });
+                if (!toolResult) return answer(id, { usage, tool_calls: [
+                  { id: 'allowed', type: 'function', function: { name: 'web_search', arguments: '{"query":"汇率"}' } },
+                  { id: 'blocked', type: 'function', function: { name: 'web_search', arguments: '{"query":"附件私有词"}' } },
+                ] });
+                window.fixture.attachmentToolResults = body.messages.filter(m => m.role === 'tool').map(m => JSON.parse(m.content));
+                window.alcorResult(id, 'delta', '已核对附件与工具结果。');
+                return answer(id, { usage });
+              }
               if (lastUser.includes('图表渲染样本')) {
                 const block = (text) => '\x60\x60\x60mermaid\n' + text + '\n\x60\x60\x60';
                 const samples = lastUser.includes('错误') ? ['flowchart LR\nA -->', '%%{init: {}}%%\nflowchart LR\nA --> B'] : [
@@ -815,8 +827,15 @@ async function main() {
     await received.waitFor(); assert.equal(await received.isChecked(), true);
     await shot('14-local-files');
     await page.reload(); await click('已收 1 份 · 本轮 1 份');
-    await click('总结要点');
-    await page.waitForFunction(() => fixture.chatFiles?.[0] === 'fixture-ref');
+    await page.keyboard.press('Escape');
+    await send('查汇率后总结要点');
+    await page.getByText('已核对附件与工具结果。', { exact: true }).waitFor();
+    const attachment = await page.evaluate(() => ({ packets: fixture.attachmentPackets, tools: fixture.attachmentToolResults }));
+    assert.deepEqual(attachment.packets.map(p => [p.turn, p.files]), [
+      ['fixture-attachment-turn', ['fixture-ref']], ['fixture-attachment-turn', ['fixture-ref']],
+    ]);
+    assert.equal(attachment.tools[0].query, '汇率');
+    assert.match(attachment.tools[1].error, /本轮原话/);
     await page.getByText('本轮材料：项目资料.zip', { exact: true }).waitFor();
     await page.getByRole('button', { name: '已收 1 份 · 本轮 0 份' }).waitFor();
     const before = await page.evaluate(() => fixture.posts);

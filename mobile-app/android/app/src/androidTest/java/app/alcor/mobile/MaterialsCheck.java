@@ -24,6 +24,7 @@ public final class MaterialsCheck extends Instrumentation {
         String batch = UUID.randomUUID().toString().replace("-", "");
         int code = Activity.RESULT_CANCELED;
         try {
+            result.putString("attachmentTurn", AttachmentTurnCheck.run(getTargetContext()));
             result.putString("notesMigration", NotesMigrationCheck.run(getTargetContext()));
             result.putString("notesCapture", NotesCaptureCheck.run(getTargetContext()));
             result.putString("chatImport", ChatImportCheck.run(getTargetContext()));
@@ -46,7 +47,7 @@ public final class MaterialsCheck extends Instrumentation {
                 .put("endpoint","https://api.deepseek.com/chat/completions").put("key","fixture-only");
             var refs = new JSONArray().put(batch + ":0");
             var msg = new JSONArray().put(new JSONObject().put("role","user").put("content","核对报价"));
-            files.withFiles(config, "sample", refs, msg);
+            files.prepareFiles(config, "sample", refs, msg).apply(msg);
             JSONObject body = Network.chatBody(config,msg);
             String content = body.getJSONArray("messages").getJSONObject(0).getJSONArray("content").toString();
             if (!content.contains("样本报价 713") || !content.contains("image_url") || !content.contains("未读.bin · 仅列文件名") ||
@@ -56,7 +57,7 @@ public final class MaterialsCheck extends Instrumentation {
             JSONObject pro = Network.chatBody(config, new JSONArray());
             if (!pro.getString("model").equals("deepseek-v4-pro") || pro.has("reasoning_effort") ||
                 !pro.getJSONObject("thinking").getString("type").equals("disabled")) throw new AssertionError("model selection lost");
-            try { files.withFiles(config, "sample", refs, new JSONArray().put(new JSONObject().put("content","test")));
+            try { files.prepareFiles(config, "sample", refs, new JSONArray().put(new JSONObject().put("role","user").put("content","test")));
                 throw new AssertionError("incompatible model was silently accepted");
             } catch (IllegalArgumentException expected) {
                 if (!expected.getMessage().contains("切换")) throw expected;

@@ -17,6 +17,7 @@ import org.json.JSONObject;
 public final class MobileService {
     private final Context context;
     private final SecretStore secrets;
+    private final ModelTurns modelTurns;
     private final DiscussionFiles materials;
     private final IncomingFiles incoming;
     private final Notes notes;
@@ -27,6 +28,7 @@ public final class MobileService {
     MobileService(AppContainer container) {
         context = container.context();
         secrets = container.secrets();
+        modelTurns = container.modelTurns();
         materials = container.materials();
         incoming = container.incoming();
         notes = container.notes();
@@ -65,25 +67,34 @@ public final class MobileService {
             case "reminders.permissions": return reminders.permissions(mode);
             case "settings": return settings();
             case "model.clear":
-                secrets.write("model", new JSONObject());
+                synchronized (modelTurns) {
+                    secrets.write("model", new JSONObject());
+                    modelTurns.clear();
+                }
                 return settings();
             case "model.save": {
                 String endpoint = Network.https(input.getString("endpoint").trim()).toString();
                 String model = input.getString("model").trim();
                 String key = input.getString("key").trim();
                 if (model.isEmpty() || model.length() > 120) throw new IllegalArgumentException("请填写有效的模型名");
-                JSONObject old = secrets.read("model");
-                if (key.isEmpty() && endpoint.equals(old.optString("endpoint"))) key = old.optString("key");
-                verifyKey(key);
                 String effort = input.getString("effort");
                 if (!effort.matches("none|low|high|max")) throw new IllegalArgumentException("思考强度无效");
-                secrets.write("model", new JSONObject().put("endpoint", endpoint).put("model", model).put("key", key).put("effort", effort));
+                synchronized (modelTurns) {
+                    JSONObject old = secrets.read("model");
+                    if (key.isEmpty() && endpoint.equals(old.optString("endpoint"))) key = old.optString("key");
+                    verifyKey(key);
+                    secrets.write("model", new JSONObject().put("endpoint", endpoint).put("model", model).put("key", key).put("effort", effort));
+                    modelTurns.replaceKey(endpoint, key);
+                }
                 return settings();
             }
             case "search.save": {
                 String key = input.getString("key").trim();
                 if (!key.isEmpty()) verifyKey(key);
-                secrets.write("search", key.isEmpty() ? new JSONObject() : new JSONObject().put("key", key));
+                synchronized (modelTurns) {
+                    secrets.write("search", key.isEmpty() ? new JSONObject() : new JSONObject().put("key", key));
+                    modelTurns.replaceSearchKey(key);
+                }
                 return settings();
             }
             case "material.branch": {
@@ -127,16 +138,46 @@ public final class MobileService {
                 return notes.branch(mode, input.getString("id"), to);
             }
             case "material.remove": materials.remove(input.getString("dialog"), input.getString("ref")); return true;
+            case "chat.begin": {
+                synchronized (modelTurns) {
+                    JSONObject model = modelConfig();
+                    return new JSONObject().put("id", modelTurns.begin(model, secrets.read("search").optString("key")))
+                        .put("model", model.getString("model")).put("officialSearch", Network.usesOfficialModel(model));
+                }
+            }
+            case "chat.check": modelTurns.require(input.getString("turn")).checkAttachments(); return true;
+            case "chat.end": modelTurns.end(input.getString("turn")); return true;
             case "chat": {
-                JSONObject config = modelConfig();
+                String id = input.optString("turn");
+                var turn = input.has("turn") ? modelTurns.require(id) : null;
+                JSONObject config = turn == null ? modelConfig() : turn.model();
                 JSONArray messages = input.getJSONArray("messages");
-                if (input.has("files")) config = materials.withFiles(config, input.getString("dialog"), input.getJSONArray("files"), messages);
+                if (turn != null) turn.checkSelection(input.has("files"));
+                if (input.has("files")) {
+                    if (turn == null) throw new IllegalArgumentException("附件需要在已绑定的模型回合发送");
+                    turn.attach(materials, input.getString("dialog"), input.getJSONArray("files"), messages,
+                        () -> modelTurns.require(id), materials::uploadDocument);
+                    turn.checkAttachments();
+                    modelTurns.require(id);
+                }
                 return Network.chat(config, messages, input.optBoolean("title"), input.optJSONArray("tools"), delta::accept);
             }
-            case "search":
+            case "search": {
+                if (input.has("turn")) {
+                    var turn = modelTurns.require(input.getString("turn"));
+                    turn.checkAttachments();
+                    return Network.search(turn.model(), turn.searchKey(), input.getString("query"));
+                }
                 return Network.search(secrets.read("model"), secrets.read("search").optString("key"), input.getString("query"));
-            case "fetch":
+            }
+            case "fetch": {
+                if (input.has("turn")) {
+                    var turn = modelTurns.require(input.getString("turn"));
+                    turn.checkAttachments();
+                    return Network.fetch(turn.model(), input.getString("url"));
+                }
                 return Network.fetch(modelConfig(), input.getString("url"));
+            }
             case "pair": {
                 String code = input.getString("code").trim();
                 if (!code.startsWith("ALCOR1.") || code.length() > 2000 || !code.substring(7).matches("[A-Za-z0-9_-]+"))

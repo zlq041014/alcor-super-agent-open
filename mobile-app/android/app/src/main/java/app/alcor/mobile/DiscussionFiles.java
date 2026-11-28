@@ -16,6 +16,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.json.JSONArray;
@@ -262,13 +263,67 @@ final class DiscussionFiles {
         ctx.startActivity(chooser);
         return new JSONObject();
     }
-    JSONObject withFiles(JSONObject config, String dialog, JSONArray refs, JSONArray messages) throws Exception {
+    interface CheckPacket { void check() throws Exception; }
+    interface DocumentUploader { String upload(JSONObject config, File file, String name, String purpose) throws Exception; }
+    private record Upload(JSONObject slot, File file, String name, String purpose) {}
+    private record Origin(String ref, long size, long modified) {}
+
+    final class PreparedFiles {
+        private final JSONObject config;
+        private final String dialog, selection, question;
+        private final int index;
+        private final JSONArray parts;
+        private final List<Origin> origins;
+        private final List<Upload> uploads;
+
+        PreparedFiles(JSONObject config, String dialog, JSONArray refs, String question, int index, JSONArray parts,
+                      List<Origin> origins, List<Upload> uploads) {
+            this.config = config; this.dialog = dialog; this.selection = refs.toString(); this.question = question;
+            this.index = index; this.parts = parts; this.origins = origins; this.uploads = uploads;
+        }
+
+        boolean matches(String owner, JSONArray refs) { return dialog.equals(owner) && selection.equals(refs.toString()); }
+
+        void check() throws Exception {
+            for (var origin : origins) {
+                File current = file(dialog, origin.ref());
+                if (!current.isFile() || current.length() != origin.size() || current.lastModified() != origin.modified())
+                    throw new IllegalStateException("本轮所选附件已移除或变化，请重新选择");
+            }
+        }
+
+        void apply(JSONArray messages) throws Exception {
+            JSONObject anchor = messages.optJSONObject(index);
+            if (anchor == null || !"user".equals(anchor.optString("role")) || !question.equals(anchor.opt("content")))
+                throw new IllegalStateException("本轮附件的原问题已变化，请重新发送");
+            check();
+            anchor.put("content", parts);
+        }
+
+        void upload(CheckPacket beforeUpload, DocumentUploader uploader) throws Exception {
+            for (var upload : uploads) {
+                if (upload.slot().has("file_id")) continue;
+                beforeUpload.check();
+                check();
+                upload.slot().put("file_id", uploader.upload(config, upload.file(), upload.name(), upload.purpose()));
+            }
+        }
+    }
+
+    PreparedFiles prepareFiles(JSONObject config, String dialog, JSONArray refs, JSONArray messages) throws Exception {
         if (refs.length() < 1 || refs.length() > 3) throw new IllegalArgumentException("每轮请选择 1 至 3 份材料");
-        JSONObject last = messages.getJSONObject(messages.length() - 1);
-        JSONArray parts = new JSONArray().put(new JSONObject().put("type", "text").put("text", last.getString("content")));
+        var uploads = new java.util.ArrayList<Upload>();
+        var origins = new java.util.ArrayList<Origin>();
+        int index = messages.length() - 1;
+        JSONObject last = messages.getJSONObject(index);
+        if (!"user".equals(last.optString("role"))) throw new IllegalArgumentException("本轮附件需要绑定用户原问题");
+        String question = last.getString("content");
+        JSONArray parts = new JSONArray().put(new JSONObject().put("type", "text").put("text", question));
         for (int i = 0; i < refs.length(); i++) {
             String ref = refs.getString(i);
             File file = file(dialog, ref);
+            if (!file.isFile()) throw new IllegalStateException("本轮所选附件已移除，请重新选择");
+            origins.add(new Origin(ref, file.length(), file.lastModified()));
             String name = manifest(file.getParentFile()).getJSONArray("files").getJSONObject(Integer.parseInt(file.getName())).getString("name");
             String ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
             boolean official = Network.usesOfficialModel(config);
@@ -286,7 +341,9 @@ final class DiscussionFiles {
             } else if (ext.matches("png|jpg|jpeg|gif|webp") && official && !visual) {
                 throw new IllegalArgumentException("所选模型不支持图片，请切换 V4.1 Flash");
             } else if (ext.matches("png|jpg|jpeg|gif|webp") && official && file.length() > 1024 * 1024) {
-                parts.put(new JSONObject().put("type", "file").put("file_id", uploadDocument(config, file, name, "user_data")));
+                var slot = new JSONObject().put("type", "file");
+                parts.put(slot);
+                uploads.add(new Upload(slot, file, name, "user_data"));
             } else if (ext.matches("png|jpg|jpeg|gif|webp")) {
                 String mime = ext.equals("jpg") ? "jpeg" : ext;
                 String image = "data:image/" + mime + ";base64," + Base64.encodeToString(Files.readAllBytes(file.toPath()), Base64.NO_WRAP);
@@ -297,13 +354,14 @@ final class DiscussionFiles {
                 parts.put(new JSONObject().put("type", "text").put("text", text));
             } else if (ext.matches("pdf|docx?|pptx?|xlsx?")) {
                 if (!official || !visual) throw new IllegalArgumentException("文档解析需使用 DeepSeek 官方接口和 V4.1 Flash");
-                parts.put(new JSONObject().put("type", "file").put("file_id", uploadDocument(config, file, name, ext.startsWith("xls") ? "user_data" : "text_recognition")));
+                var slot = new JSONObject().put("type", "file");
+                parts.put(slot);
+                uploads.add(new Upload(slot, file, name, ext.startsWith("xls") ? "user_data" : "text_recognition"));
             } else throw new IllegalArgumentException("此格式已保存，但暂不支持交给模型阅读");
         }
-        last.put("content", parts);
-        return config;
+        return new PreparedFiles(config, dialog, refs, question, index, parts, origins, uploads);
     }
-    private static String uploadDocument(JSONObject config, File file, String name, String purpose) throws Exception {
+    String uploadDocument(JSONObject config, File file, String name, String purpose) throws Exception {
         var c = Network.bearer("https://api.deepseek.com/files", "POST", config.getString("key"));
         String boundary = "alcor-" + UUID.randomUUID();
         StringBuilder form = new StringBuilder();

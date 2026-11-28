@@ -15,6 +15,7 @@ final class AppContainer {
     private final Context context;
     private final Database database;
     private final SecretStore secrets;
+    private final ModelTurns modelTurns = new ModelTurns();
     private final DiscussionFiles materials;
     private final IncomingFiles incoming;
     private final Notes notes;
@@ -49,6 +50,8 @@ final class AppContainer {
     SecretStore secrets() {
         return secrets;
     }
+
+    ModelTurns modelTurns() { return modelTurns; }
 
     DiscussionFiles materials() {
         return materials;

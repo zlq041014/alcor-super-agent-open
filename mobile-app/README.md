@@ -45,6 +45,8 @@ M2.3 会话库迁移已实现并在既有版本的迁移测试中验证：`assis
 2. 官方 DeepSeek 配置可以直接用同一把 Key 联网搜索。自定义网关可在「电脑 → 联网搜索」单独配置 Brave Search Key。来源可打开；未配置或请求失败时，星引保留原话并说明原因。
 3. 手机和电脑接入同一网络。在桌面 0.2.1 的「设置 → 手机接入」选择可从手机访问的地址和要共享的项目，生成配对码，再到手机「配对一台电脑」粘贴。入口使用 TCP 49424；桌面可以撤销配对或关闭入口。电脑离线时仍可使用手机助手和本机记录。
 
+附件问答使用工具时，后续请求仍在原问题处带同一份材料；已确认的文档上传只在本轮沿用。删除附件或撤销连接后，本轮不再发送。用生产界面回归和 Android 原生夹具复验；供应商上传以合成回执验证。
+
 ## 构建与验证
 
 构建需要 JDK 17、Android SDK 36 和 Gradle 8.13。在项目根目录运行 `gradle -p mobile-app/android :app:assembleDebug`，生成 `mobile-app/android/app/build/outputs/apk/debug/app-debug.apk`。单测运行 `gradle -p mobile-app/android :app:testDebugUnitTest`；`NotesMigrationCheck` 和 `ChatImportCheck`（会话库迁移、备份字节核对、快照/提交往返、损坏文件拒绝）随 `MaterialsCheck` 在设备上执行。界面改动先跑 `node mobile-app/android/tools/check-ui.cjs`；协议改动再在 `desktop-app` 用 Node 24 跑 `node --import tsx --test tests/mobile.test.ts tests/dsh-desktop.test.ts`。两者按需运行，不替代真机验收。
