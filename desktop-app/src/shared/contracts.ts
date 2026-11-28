@@ -765,6 +765,7 @@ export const Request = z.discriminatedUnion("op", [
       op: z.literal("agent.launch.confirm"),
       id,
       profile: ProfileSchema,
+      catalogVersion: z.string().uuid().optional(),
     })
     .strict(),
   z.object({ op: z.literal("agent.launch.cancel"), id }).strict(),

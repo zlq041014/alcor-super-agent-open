@@ -727,13 +727,7 @@ export class Hub extends EventEmitter {
         return this.modelCatalog(r.backend);
       case "executor.models": return this.refreshExecutorModels(r.backend);
       case "executor.modelDefault": {
-        const directory = this.executorCatalog.current(r.backend);
-        const model = directory.entries.find(m => m.id === r.profile.model);
-        if (directory.state !== "available" || directory.catalogVersion !== r.catalogVersion || !model)
-          throw new Error("模型目录已变化，请重新读取后选择");
-        if (r.profile.effort !== "default" && !model.efforts.includes(r.profile.effort))
-          throw new Error("此目录未确认该思考强度，请选后端默认或已报告的值");
-        this.checkProfile(r.profile, r.backend);
+        this.executorCatalog.requireSelection(r.backend, r.catalogVersion, r.profile);
         const cfg = this.settings();
         this.store.put("settings", { id: "global", value: { ...cfg, executorBackend: r.backend, revision: cfg.revision + 1,
           executorProfiles: { ...cfg.executorProfiles, [r.backend]: r.profile } } });
@@ -743,7 +737,7 @@ export class Hub extends EventEmitter {
       case "agent.launch.cancel":
         return this.launches.cancel(r.id);
       case "agent.launch.confirm":
-        return this.launches.confirm(r.id, r.profile);
+        return this.launches.confirm(r.id, r.profile, r.catalogVersion);
       case "acceptance.read": return readManualAcceptance(this.store, r.id);
       case "reuse.publish":
         return this.desk.once(r.requestId, r, () => this.reuse.publish(r));

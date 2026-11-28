@@ -10,7 +10,7 @@ export async function submitAgentForm(
     !["task.create", "discussion.open", "agent.delegate"].includes(value.op)
   )
     return send(value);
-  const { profile, ...intent } = value,
+  const { profile, catalogVersion, ...intent } = value,
     selected = ProfileSchema.parse(profile);
   const pending = await send(intent);
   if (!pending.launchId) return pending;
@@ -18,5 +18,6 @@ export async function submitAgentForm(
     op: "agent.launch.confirm",
     id: pending.launchId,
     profile: selected,
+    ...(catalogVersion ? { catalogVersion } : {}),
   });
 }

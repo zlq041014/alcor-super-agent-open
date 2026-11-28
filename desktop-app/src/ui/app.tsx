@@ -80,7 +80,7 @@ import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import { MobileDelivery } from "./mobile-delivery";
 import { RecordReuse, ReuseLibrary, SaveReuse } from "./reuse-items";
 import { WorkRecord, messageWork } from "./work-record";
-import { ProfilePicker, effortName } from "./model-profile";
+import { ProfilePicker, effortName, executorProfileIssue } from "./model-profile";
 import {
   AdvanceSelect,
   GraphDetails,
@@ -92,6 +92,7 @@ import { emptyResearch, ResearchFieldsForm, researchValue } from "./research";
 import { GraphTiming } from "../shared/graph-progress";
 import {
   defaultProfile,
+  executorProfile,
   type ModelProfile,
   type LaunchCard,
 } from "../shared/contracts";
@@ -385,6 +386,8 @@ function App() {
     setLaunchProfile(c.profile);
   }
   const pendingLaunch = s?.launches.find((c) => c.id === launchId);
+  const launchCatalog = pendingLaunch?.kind === "executor" ? s?.executorModels[pendingLaunch.backend ?? "codex"] : undefined;
+  const launchModelIssue = launchCatalog && launchProfile ? executorProfileIssue(launchCatalog, launchProfile) : "";
   useEffect(() => {
     if (!s || pendingLaunch || modal || profileEdit) return;
     const c = s.launches.find((x) => !seenLaunch.current.has(x.id));
@@ -2000,6 +2003,7 @@ function App() {
             }
             value={launchProfile}
             onChange={setLaunchProfile}
+            verified={!!launchCatalog}
           />
           <p className="field-help">
             {pendingLaunch.scope === "discussion"
@@ -2032,7 +2036,7 @@ function App() {
             </button>
             <button
               className="primary"
-              disabled={launchBusy || !launchProfile.model.trim()}
+              disabled={launchBusy || !launchProfile.model.trim() || !!launchModelIssue}
               onClick={() =>
                 void run(async () => {
                   setLaunchBusy(true);
@@ -2041,6 +2045,7 @@ function App() {
                       op: "agent.launch.confirm",
                       id: pendingLaunch.id,
                       profile: launchProfile,
+                      ...(launchCatalog?.catalogVersion ? { catalogVersion: launchCatalog.catalogVersion } : {}),
                     });
                     await refresh();
                     setLaunchId(undefined);
@@ -2217,7 +2222,7 @@ function App() {
           tasks={s.tasks}
           onAttachments={setAttachments}
           onClose={() => setModal(undefined)}
-          onSave={async (value, profile) => {
+          onSave={async (value, profile, catalogVersion) => {
             const result = await run(() =>
               api.request(
                 editTask
@@ -2234,6 +2239,7 @@ function App() {
                   : {
                       op: "task.create",
                       ...(profile ? { profile } : {}),
+                      ...(catalogVersion ? { catalogVersion } : {}),
                       value,
                       requestId: crypto.randomUUID(),
                     },
@@ -3275,7 +3281,7 @@ function TaskForm({
   attachments: Artifact[];
   onAttachments: (a: Artifact[]) => void;
   onClose: () => void;
-  onSave: (value: any, profile?: ModelProfile) => Promise<void>;
+  onSave: (value: any, profile?: ModelProfile, catalogVersion?: string) => Promise<void>;
 }) {
   const [advance, setAdvance] = useState(
     task?.advance ?? (snapshot.settings.defaultAdvance === "single" ? "single" : "loop-native"),
@@ -3325,7 +3331,7 @@ function TaskForm({
           ? "write"
           : "codex",
     ),
-    [profile, setProfile] = useState(defaultProfile(snapshot.settings)),
+    [profile, setProfile] = useState(() => executorProfile(snapshot.settings, backend)),
     [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
     [isolate, setIsolate] = useState(task?.isolate || false),
@@ -3334,6 +3340,8 @@ function TaskForm({
       task?.checks?.[0]?.contains || "",
     ),
     [dependency, setDependency] = useState(task?.dependencies[0] || "");
+  const taskCatalog = !task && !looping ? snapshot.executorModels[backend] : undefined;
+  const taskModelIssue = taskCatalog ? executorProfileIssue(taskCatalog, profile) : "";
   return (
     <Modal
       title={task ? "修改工作要求" : "创建一项工作"}
@@ -3343,6 +3351,7 @@ function TaskForm({
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (taskModelIssue) return;
           setError("");
           let graphValue;
           try {
@@ -3382,6 +3391,7 @@ function TaskForm({
               ...(!task ? { advance, ...(graphValue && { graph: graphValue }) } : {}),
             },
             looping ? undefined : profile,
+            taskCatalog?.catalogVersion,
           ).finally(() => setSaving(false));
         }}
       >
@@ -3528,6 +3538,7 @@ function TaskForm({
             backend={backend}
             value={profile}
             onChange={setProfile}
+            verified
           />
         )}
         <details>
@@ -3652,7 +3663,7 @@ function TaskForm({
           </button>
           <button
             className="primary"
-            disabled={!projectId || saving || (looping && mode === "read")}
+            disabled={!projectId || saving || (looping && mode === "read") || !!taskModelIssue}
             type="submit"
           >
             {saving

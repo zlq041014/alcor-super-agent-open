@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ExecutorBackend, ExecutorModels, ModelEntry } from "../shared/contracts";
+import type { ExecutorBackend, ExecutorModels, ModelEntry, ModelProfile } from "../shared/contracts";
 import { redact } from "./security";
 import { stamp } from "./store";
 
@@ -14,6 +14,15 @@ export class ExecutorCatalog {
   current(backend: ExecutorBackend): ExecutorModels {
     const row = this.rows.get(backend);
     return row?.checkedAt && Date.now() - Date.parse(row.checkedAt) < TTL ? row : { state: "unread", entries: [] };
+  }
+
+  requireSelection(backend: ExecutorBackend, catalogVersion: string, profile: ModelProfile) {
+    const directory = this.current(backend);
+    const model = directory.entries.find(m => m.id === profile.model);
+    if (directory.state !== "available" || directory.catalogVersion !== catalogVersion || !model)
+      throw new Error("模型目录已变化，请重新读取后选择");
+    if (profile.effort !== "default" && !model.efforts.includes(profile.effort))
+      throw new Error("此目录未确认该思考强度，请选后端默认或已报告的值");
   }
 
   clear(backend: ExecutorBackend) {

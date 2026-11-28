@@ -157,6 +157,65 @@ test("DSH ACP catalog only projects advertised managed provider values and repor
   ]);
   assert.deepEqual(dshCatalogOptions([], ["same"]), []);
 });
+
+test("launch confirmation fences model choices by source and catalog without losing a pending card", async () => {
+  const { h, n, p } = await fixture();
+  h.tick = async () => {};
+  try {
+    const prepare = () => h.request({ op: "task.create", requestId: "verified-executor-launch", value: {
+      projectId: p.id, goal: "只读核对", advance: "single", mode: "read",
+    } });
+    const { launchId } = await prepare();
+    const ask = (backend: "codex" | "dsh") => h.request({ op: "executor.models", backend });
+    const confirm = (catalogVersion: string, model = "limited", effort = "low") =>
+      h.request({ op: "agent.launch.confirm", id: launchId, catalogVersion, profile: { model, effort } });
+    h.dsh.models = async () => [{ id: "limited", efforts: ["low"] }];
+    const [a, dsh] = await Promise.all([ask("codex"), ask("dsh")]);
+    await assert.rejects(confirm(dsh.catalogVersion), /目录已变化/);
+    await assert.rejects(confirm(a.catalogVersion, "limited", "max"), /目录未确认/);
+    const oldCall = n.call.bind(n);
+    n.call = async (m, body) => m === "model/list" ? { data: [{ model: "replacement", supportedReasoningEfforts: [] }] } : oldCall(m, body);
+    const newCatalog = await ask("codex");
+    await assert.rejects(confirm(a.catalogVersion), /目录已变化/);
+    await assert.rejects(confirm(newCatalog.catalogVersion), /目录已变化/);
+    assert.equal(h.store.all("task").length, 0);
+    assert.equal(h.launches.pending()[0]?.id, launchId);
+    const receipt = await confirm(newCatalog.catalogVersion, "replacement", "default");
+    assert.equal(h.getTask(receipt.id).backend, "codex");
+    assert.deepEqual(h.profile(receipt.worker), { model: "replacement", effort: "default" });
+    assert.equal(h.store.get("agent-launch", launchId)?.catalogVersion, newCatalog.catalogVersion);
+    n.emit("disconnect");
+    assert.deepEqual(await confirm(newCatalog.catalogVersion, "replacement", "default"), receipt);
+    assert.equal(h.store.all("task").length, 1);
+    const discussion = await h.request({ op: "discussion.open", projectId: p.id, title: "API 讨论", requestId: "discussion-no-catalog" });
+    await assert.rejects(h.request({ op: "agent.launch.confirm", id: discussion.launchId, catalogVersion: a.catalogVersion,
+      profile: { model: "limited", effort: "default" } }), /讨论不能使用执行端目录/);
+  } finally { h.shuttingDown = true; h.store.close(); }
+});
+
+test("single-work form keeps the chosen catalog version through final confirmation", async () => {
+  const { h, n, p } = await fixture();
+  try {
+    const { catalogVersion } = await h.request({ op: "executor.models", backend: "codex" });
+    const calls: string[] = [];
+    const send = async (request: any) => {
+      calls.push(request.op);
+      const result = await h.request(request);
+      if (request.op === "task.create") {
+        assert.equal(request.catalogVersion, undefined);
+        // Even an identical list refreshed after the button was rendered is a new directory revision.
+        await h.request({ op: "executor.models", backend: "codex" });
+      }
+      return result;
+    };
+    await assert.rejects(submitAgentForm(send, { op: "task.create", requestId: "catalog-form", catalogVersion,
+      profile: { model: "limited", effort: "low" }, value: { projectId: p.id, goal: "只读", mode: "read", advance: "single" } }), /目录已变化/);
+    assert.deepEqual(calls, ["task.create", "agent.launch.confirm"]);
+    assert.equal(h.launches.pending().length, 1);
+    assert.equal(h.store.all("task").length, 0);
+    assert.ok(!n.calls.some(c => c.method === "turn/start"));
+  } finally { h.shuttingDown = true; h.store.close(); }
+});
 test("legacy built-in defaults migrate without resetting explicit newer choices; both API protocols carry the selected effort", async () => {
   assert.deepEqual(
     defaultProfile(

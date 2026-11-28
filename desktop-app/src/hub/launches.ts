@@ -36,6 +36,7 @@ type Record = {
   hash: string;
   state: "pending" | "confirming" | "created" | "cancelled" | "failed";
   profile?: ModelProfile;
+  catalogVersion?: string;
   reuse?: ReuseGrant[];
   result?: any;
   revision?: number;
@@ -163,7 +164,7 @@ export class Launches {
     if (newest?.id !== delegation.through)
       throw new Error("讨论内容已更新，请按最新讨论重新交接");
   }
-  async confirm(id: string, raw: ModelProfile) {
+  async confirm(id: string, raw: ModelProfile, catalogVersion?: string) {
     const profile = ProfileSchema.parse(raw),
       s = this.h.store,
       r = s.get<Record>("agent-launch", id);
@@ -190,6 +191,10 @@ export class Launches {
         this.checkDiscussionHandoff(r.data.delegation);
     }
     const backend = r.card.backend ?? "codex";
+    if (catalogVersion !== undefined) {
+      if (r.data.kind !== "executor") throw new Error("讨论不能使用执行端目录确认");
+      this.h.executorCatalog.requireSelection(backend, catalogVersion, profile);
+    }
     if (r.reuse) this.h.reuse.materials(r.card.projectId, r.reuse);
     if (r.card.roster && this.h.rosterExecutor(r.card.roster.id, r.card.roster.revision).source !== backend)
       throw new Error("Agent 执行来源已变化，请重新准备工作");
@@ -206,7 +211,7 @@ export class Launches {
       this.h.changed();
       throw new Error("工具审批设置已变更，请核对后再次确认");
     }
-    s.put("agent-launch", { ...r, profile, state: "confirming" });
+    s.put("agent-launch", { ...r, profile, catalogVersion, state: "confirming" });
     try {
       let result: any;
       if (r.data.kind === "executor") {
@@ -250,7 +255,7 @@ export class Launches {
             true,
           );
       }
-      s.put("agent-launch", { ...r, profile, state: "created", result });
+      s.put("agent-launch", { ...r, profile, catalogVersion, state: "created", result });
       s.event("agent.creation-confirmed", id, {
         profile,
         agentId: result.worker || result.openAgentId,
@@ -268,6 +273,7 @@ export class Launches {
       s.put("agent-launch", {
         ...r,
         profile,
+        catalogVersion,
         state: "failed",
         error: redact((e as Error).message),
       });
