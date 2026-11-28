@@ -13,7 +13,7 @@ export function ReusePublishFields({ items }: { items: ReuseItem[] }) {
     </select></label>}
     {prior ? <p>类别：{REUSE_KIND_LABELS[kind]}<input type="hidden" name="kind" value={kind} /></p> :
       <label>类别<select name="kind" value={selected} onChange={e => setSelected(e.target.value as ReuseKind)}>
-        {Object.entries(REUSE_KIND_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        {Object.entries(REUSE_KIND_LABELS).filter(([value]) => value !== "skill").map(([value, label]) => <option key={value} value={value}>{label}</option>)}
       </select></label>}
     {kind === "experience" && <label>可复用的做法<textarea name="guidance" required maxLength={6000} /></label>}
   </>;

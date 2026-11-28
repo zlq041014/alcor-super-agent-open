@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { REUSE_KIND_LABELS, type ReuseItem, type ReuseRef, type ReuseVersion, type Run, type Snapshot, type Task } from "../shared/contracts";
 import { ReuseGoal, ReusePublishFields } from "./reuse-fields";
+import { RegisterSkill, SkillReferenceStatus } from "./reuse-skill";
 
 type Request = (value: unknown) => Promise<any>;
 type ProjectOption = { id: string; name: string };
@@ -19,7 +20,7 @@ export function SaveReuse({ snapshot, task, run, request, refresh }: {
 }) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [notice, setNotice] = useState("");
   if (task.state !== "done" || run.id !== task.runId || run.revision !== task.revision || run.outcome !== "completed" || !run.response.trim()) return null;
-  const items = snapshot.reuseItems?.filter(item => item.projectId === task.projectId) ?? [];
+  const items = snapshot.reuseItems?.filter(item => item.projectId === task.projectId && item.kind !== "skill") ?? [];
   const projects = snapshot.projects.filter(p => !p.removed && p.available !== false);
   return <section aria-label="留给下次">
     {!open ? <button type="button" onClick={() => { setOpen(true); setNotice(""); }}>留给下次</button> :
@@ -66,6 +67,7 @@ export function ReuseLibrary({ snapshot, request, refresh, showLaunch, openTask 
   }
   return <section className="page" aria-label="跨项目留用">
     <h1>留用架</h1>
+    <RegisterSkill projects={projects} request={request} refresh={refresh} />
     <p>按版本把已验收的内容、模板和经验带到指定项目。</p>
     {!items.length && <p>还没有跨项目留用内容。可以从已验收的结果选择「留给下次」。</p>}
     <ul>{items.map(entry => <li key={entry.id}><button type="button" disabled={busy} aria-pressed={item?.id === entry.id}
@@ -73,11 +75,14 @@ export function ReuseLibrary({ snapshot, request, refresh, showLaunch, openTask 
     {item && details && details.versionId !== item.versionId && <p role="status">版本已变化，请重新打开条目。</p>}
     {item && details?.versionId === item.versionId && <section aria-label={item.title}>
       <h2>{item.title} · {REUSE_KIND_LABELS[item.kind]} · 第 {item.version} 版</h2><p>{item.condition}</p><p className="launch-goal">{details.text}</p>
+      {details.skill && <SkillReferenceStatus key={item.versionId} skill={details.skill} reference={refOf(item)} targets={targets}
+        request={request} defaultBackend={snapshot.settings.executorBackend} />}
+      {details.skill && <RegisterSkill key={item.id} item={item} projects={projects} request={request} refresh={refresh} />}
       {details.sourceExcerpt && <details><summary>来源原文</summary><p className="launch-goal">{details.sourceExcerpt}</p></details>}
       {origin && <button type="button" onClick={() => openTask(origin)}>打开原工作</button>}
       <p>可采用：{targets.map(p => p.name).join("、") || "无"}</p>
       <div className="button-row"><button type="button" disabled={busy} onClick={() => setAction("scope")}>编辑授权</button>
-        {item.active && targets.length > 0 && <button type="button" disabled={busy} onClick={() => setAction("apply")}>用于新工作</button>}</div>
+        {item.active && targets.length > 0 && <button type="button" disabled={busy} onClick={() => setAction("apply")}>{item.kind === "skill" ? "作为参考" : "用于新工作"}</button>}</div>
       {uses.length > 0 && <ul>{uses.map(u => <li key={u.id}>第 {u.ref.version} 版 · {labels[u.outcome]}{u.note ? `：${u.note}` : ""}</li>)}</ul>}
     </section>}
     {item && action && details?.versionId === item.versionId && <form key={action + item.id + item.revision} onSubmit={e => {

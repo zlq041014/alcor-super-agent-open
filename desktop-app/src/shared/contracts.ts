@@ -587,13 +587,22 @@ export interface LaunchCard {
   reuse?: { title: string; version: number; kind?: ReuseKind }[];
 }
 const ReuseSelection = z.object({ id: z.string().uuid(), version: z.number().int().positive(), versionId: z.string().uuid() }).strict();
-const ReuseKindSchema = z.enum(["content", "template", "experience"]);
-export type ReuseKind = z.infer<typeof ReuseKindSchema>;
-export const REUSE_KIND_LABELS: Record<ReuseKind, string> = { content: "内容", template: "模板", experience: "经验" };
+const WrittenReuseKind = z.enum(["content", "template", "experience"]);
+export type ReuseKind = z.infer<typeof WrittenReuseKind> | "skill";
+export const REUSE_KIND_LABELS: Record<ReuseKind, string> = { content: "内容", template: "模板", experience: "经验", skill: "Skill" };
+export interface SkillSource {
+  host: ExecutorBackend;
+  name: string;
+  scope: "repo" | "user" | "system" | "admin";
+  toolRequirements: number;
+}
+export type SkillChoice = SkillSource & { id: string };
+export type SkillCatalog = { state: "available" | "partial" | "unsupported"; skills: SkillChoice[] };
+export type SkillMatch = "listed" | "tool-requirements" | "not-listed" | "catalog-unavailable" | "different-host" | "unsupported";
 export type ReuseRef = z.infer<typeof ReuseSelection>;
 export type ReuseGrant = ReuseRef & { grant: string };
 export type ReuseMaterial = { title: string; condition: string; kind: ReuseKind; text: string; version: number };
-export type ReuseVersion = ReuseMaterial & { id: string; taskId: string; runId: string; sourceExcerpt?: string };
+export type ReuseVersion = ReuseMaterial & { id: string; taskId?: string; runId?: string; sourceExcerpt?: string; skill?: SkillSource };
 export interface ReuseItem extends Entity {
   kind: ReuseKind;
   title: string;
@@ -678,8 +687,14 @@ export const Request = z.discriminatedUnion("op", [
   z.object({ op: z.literal("acceptance.read"), id }).strict(),
   z.object({ op: z.literal("reuse.publish"), id: z.string().uuid().optional(), revision: z.number().int().positive().optional(), taskId: id, runId: id,
     title: z.string().trim().min(1).max(100), condition: z.string().trim().min(1).max(1000), excerpt: z.string().trim().min(1).max(6000),
-    kind: ReuseKindSchema.optional(), guidance: z.string().trim().min(1).max(6000).optional(),
+    kind: WrittenReuseKind.optional(), guidance: z.string().trim().min(1).max(6000).optional(),
     projectIds: z.array(id).min(1).max(12), requestId: id }).strict(),
+  z.object({ op: z.literal("reuse.skillCatalog"), projectId: id, backend: z.enum(["codex", "dsh"]) }).strict(),
+  z.object({ op: z.literal("reuse.publishSkill"), id: z.string().uuid().optional(), revision: z.number().int().positive().optional(),
+    projectId: id, backend: z.enum(["codex", "dsh"]), skillId: z.string().regex(/^[a-f0-9]{64}$/),
+    title: z.string().trim().min(1).max(100), condition: z.string().trim().min(1).max(1000), reference: z.string().trim().min(1).max(6000),
+    projectIds: z.array(id).min(1).max(12), requestId: id }).strict(),
+  z.object({ op: z.literal("reuse.skillMatch"), projectId: id, backend: z.enum(["codex", "dsh"]), ref: ReuseSelection }).strict(),
   z.object({ op: z.literal("reuse.scope"), id, revision: z.number().int().positive(), projectIds: z.array(id).max(12), active: z.boolean() }).strict(),
   z.object({ op: z.literal("reuse.project"), projectId: id }).strict(),
   z.object({ op: z.literal("reuse.inspect"), ref: ReuseSelection, projectId: id.optional() }).strict(),

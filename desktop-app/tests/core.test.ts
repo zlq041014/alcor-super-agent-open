@@ -272,6 +272,77 @@ test("cross-project templates and experience keep category and version without s
   } finally { end(f); }
 });
 
+test("Skill references require discovered identity and authorization; dispatch carries only approved reference text", async () => {
+  const f = await fixture();
+  try {
+    const add = async (name: string) => {
+      const path = join(f.dir, name);
+      await mkdir(path);
+      return f.hub.request({ op: "project.add", name, path });
+    };
+    const a = f.p, b = await add("授权项目"), c = await add("无授权项目");
+    const privatePath = join(f.dir, "local-install", "skill", "SKILL.md");
+    const row = { name: "delivery-review", scope: "user", path: privatePath, enabled: true,
+      description: "宿主定义正文不随派工分享", dependencies: { tools: [{ type: "mcp", value: "fixture-only" }] } };
+    let bListsSame = true, disableSource = false, reads = 0, duringList: (() => Promise<unknown>) | undefined;
+    const original = f.codex.call.bind(f.codex);
+    f.hub.codex.call = async (method, value) => {
+      if (method !== "skills/list") return original(method, value);
+      reads++;
+      const [cwd] = value.cwds;
+      assert.equal(value.forceReload, true);
+      await duringList?.();
+      return { data: [{ cwd, errors: [], skills: [
+        { ...row, enabled: !(cwd === a.path && disableSource), ...(cwd === b.path && !bListsSame ? { path: join(b.path, "SKILL.md") } : {}) },
+        { ...row, name: "disabled", enabled: false },
+      ] }] };
+    };
+    const catalog = (projectId: string, backend = "codex") => f.hub.request({ op: "reuse.skillCatalog", projectId, backend });
+    assert.deepEqual(await catalog(a.id, "dsh"), { state: "unsupported", skills: [] });
+    assert.equal(reads, 0);
+    const [choice] = (await catalog(a.id)).skills;
+    assert.deepEqual(Object.keys(choice).sort(), ["host", "id", "name", "scope", "toolRequirements"]);
+    const input = { op: "reuse.publishSkill", projectId: a.id, backend: "codex", projectIds: [b.id],
+      skillId: choice.id, title: "交付参考", condition: "仅在明确验收范围时", reference: "整理目标项目的验收材料。" };
+    disableSource = true;
+    await assert.rejects(f.hub.request({ ...input, requestId: "disabled-before-save" }), /未确认所选 Skill/);
+    disableSource = false;
+    const first = await f.hub.request({ ...input, requestId: "skill-first" });
+    const ref = ({ id, version, versionId }: typeof first) => ({ id, version, versionId });
+    assert.equal(first.kind, "skill");
+    const match = (projectId: string, backend: string, item = first) => f.hub.request({ op: "reuse.skillMatch", projectId, ref: ref(item), backend });
+    const before = reads;
+    await assert.rejects(match(c.id, "codex"), /项目授权已变化/);
+    assert.deepEqual(await match(b.id, "dsh"), { mode: "reference", state: "different-host" });
+    assert.equal(reads, before);
+    assert.deepEqual(await match(b.id, "codex"), { mode: "reference", state: "tool-requirements" });
+    bListsSame = false;
+    assert.deepEqual(await match(b.id, "codex"), { mode: "reference", state: "not-listed" });
+    const prepared = await f.hub.request({ op: "task.create", requestId: "skill-reference-target", value: {
+      projectId: b.id, goal: "核对目标项目文字", mode: "read", advance: "single", reuse: [ref(first)],
+    } });
+    assert.equal(f.hub.launches.pending().find(card => card.id === prepared.launchId)?.reuse?.[0].kind, "skill");
+    const receipt = await f.hub.request({ op: "agent.launch.confirm", id: prepared.launchId, profile: { model: "fixture", effort: "max" } });
+    for (let i = 0; i < 100 && f.hub.scheduling; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    const params = f.codex.calls.filter(call => call.method === "turn/start").at(-1)?.params;
+    assert.equal(params?.input.length, 1);
+    assert.equal(params?.input[0].type, "text");
+    const prompt = params?.input[0].text;
+    assert.match(prompt, /只提供文字参考/);
+    assert.match(prompt, /整理目标项目的验收材料/);
+    assert.doesNotMatch(prompt, /delivery-review|fixture-only|宿主定义正文|local-install/);
+    const run = await completed(f.hub, f.hub.getTask(receipt.id), "已整理目标项目证据");
+    await f.hub.request(review(f.hub, run));
+    await f.hub.request({ op: "reuse.record", taskId: receipt.id, runId: run.id, ref: ref(first), outcome: "used", note: "查阅了参考文字" });
+    const next = await f.hub.request({ ...input, id: first.id, revision: first.revision, reference: "新版参考", requestId: "skill-v2" });
+    assert.equal(next.version, 2);
+    assert.equal(f.hub.reuse.inspect(ref(first)).text, input.reference);
+    duringList = () => f.hub.request({ op: "reuse.scope", id: next.id, revision: next.revision, projectIds: [], active: false });
+    await assert.rejects(match(b.id, "codex", next), /项目授权已变化/);
+    assert.equal(f.hub.reuse.uses().length, 1);
+  } finally { end(f); }
+});
+
 test("reuse withdrawal after native setup prevents sending the prompt", async () => {
   const f = await fixture();
   try {
