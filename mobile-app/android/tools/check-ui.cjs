@@ -1462,7 +1462,7 @@ async function main() {
     await agentPage.goto(origin);
     await agentPage.locator('#composer').waitFor();
     await agentPage.evaluate(() => sessionStorage.settings = JSON.stringify({
-      peers: [{ id: 'pc', name: '工作电脑' }], ready: true, phoneInbox: false,
+      peers: [{ id: 'pc', name: '工作电脑', grant: 'fixture-project-grant' }], ready: true, phoneInbox: false,
     }));
     await agentPage.reload();
     const projects = async () => {

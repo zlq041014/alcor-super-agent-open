@@ -228,10 +228,26 @@ export function recordDecision(d, text, quote, existing, parents = existing?.hea
 }
 
 const deliveriesByPeer = new Map();
-const resumeByProject = new Map();
+function retainProjectResumes(data, keep) {
+  if (!data.projectResumeCache) return;
+  const copies = data.projectResumeCache.filter(keep);
+  if (copies.length) data.projectResumeCache = copies;
+  else delete data.projectResumeCache;
+}
+
+function dropProjectResume(data, key) {
+  retainProjectResumes(data, copy => copy.key !== key);
+}
+
+export function dropPeerResumes(data, peer) {
+  retainProjectResumes(data, copy => copy.peer !== peer);
+}
+
 export function projectResume(data, key) {
-  const project = data.projects[key], saved = resumeByProject.get(key);
-  return project?.shared && saved?.version === project.version ? saved : undefined;
+  const project = data.projects[key];
+  const peer = data.peers[project?.peer];
+  return project?.shared && peer?.projectResume && peer.grant ? data.projectResumeCache?.find(copy =>
+    copy.key === key && copy.grant === peer.grant && copy.version === project.version) : undefined;
 }
 
 export async function refreshProjectResume(data, key, current) {
@@ -239,41 +255,55 @@ export async function refreshProjectResume(data, key, current) {
   if (!project?.shared) throw new Error('这个项目已不再共享');
   const peer = data.peers[project.peer];
   if (!peer?.online) return;
+  const { grant } = peer, { version } = project;
+  if (!grant) throw new Error('请重新核对这台电脑的配对');
   if (!peer.projectResume) throw new Error('桌面版尚不支持项目接续，请更新桌面端');
-  const valid = () => current() && data.projects[key]?.shared && data.projects[key]?.version === project.version;
+  const scopeCurrent = () => data.projects[key]?.shared && data.projects[key]?.version === version &&
+    data.peers[project.peer]?.grant === grant && data.peers[project.peer]?.projectResume;
   let result;
-  try { result = await desktop(project.peer, 'resume', { projectId: project.id, version: project.version, ...(peer.decisionEvidence ? { evidence: true } : {}) }); }
+  try { result = await desktop(project.peer, 'resume', { projectId: project.id, version, ...(peer.decisionEvidence ? { evidence: true } : {}) }); }
   catch (error) {
-    if (valid() && error.revoked) { forgetSharedProjects(data, project.peer); persist(data); }
+    if (scopeCurrent() && error.revoked) { forgetSharedProjects(data, project.peer); persist(data); }
     throw error;
   }
-  if (!valid()) return;
+  if (!scopeCurrent()) return;
   if (result?.allowed === false) {
-    resumeByProject.delete(key); data.projects[key].shared = false;
+    dropProjectResume(data, key); data.projects[key].shared = false;
     if (data.agentTrees) delete data.agentTrees[key];
     persist(data);
     throw new Error('电脑已撤回这个项目的共享');
   }
   if (result?.stale === true) {
-    resumeByProject.delete(key);
+    dropProjectResume(data, key);
+    persist(data);
     throw new Error('项目授权版本已变化，请刷新项目');
   }
-  if (result?.allowed !== true || result.projectId !== project.id || result.version !== project.version || !Number.isFinite(Date.parse(result.at)))
+  if (!current()) return;
+  if (result?.allowed !== true || result.projectId !== project.id || result.version !== version || !Number.isFinite(Date.parse(result.at)))
     throw new Error('电脑返回了不匹配的项目接续');
   const rows = Object.fromEntries(['decisions', 'changes', 'pending', 'gaps'].map(group => {
     const items = result[group];
-    if (!Array.isArray(items) || items.length > 6 || items.some(r => !r || typeof r.id !== 'string' || typeof r.text !== 'string' || r.text.length > 270 ||
+    const id = value => typeof value === 'string' && value.length > 0 && value.length <= 512;
+    if (!Array.isArray(items) || items.length > 6 || items.some(r => !r || !id(r.id) || typeof r.text !== 'string' || r.text.length > 270 ||
         r.at !== undefined && !Number.isFinite(Date.parse(r.at)) ||
-        r.target && (!['work', 'discussion', 'decision'].includes(r.target.kind) || typeof r.target.id !== 'string' ||
-          r.target.kind === 'decision' && (typeof r.target.discussion !== 'string' || typeof r.target.version !== 'string'))))
+        r.target && (!['work', 'discussion', 'decision'].includes(r.target.kind) || !id(r.target.id) ||
+          r.target.kind === 'decision' && (!id(r.target.discussion) || !id(r.target.version)))))
       throw new Error('电脑返回的项目接续条目无效');
-    return [group, items];
+    return [group, items.map(({ id, text, at, target }) => ({ id, text, at,
+      ...(target && { target: { kind: target.kind, id: target.id,
+        ...(target.kind === 'decision' && { discussion: target.discussion, version: target.version }) } }) }))];
   }));
-  resumeByProject.set(key, { ...rows, version: result.version, at: result.at });
+  const previous = data.projectResumeCache;
+  data.projectResumeCache = [{ ...rows, key, peer: project.peer, grant, version, at: result.at },
+    ...(previous ?? []).filter(copy => copy.key !== key)].slice(0, 8);
+  try { persist(data); }
+  catch (error) { data.projectResumeCache = previous; throw error; }
 }
 
 export async function fetchDecisionEvidence(data, key, target) {
   const project = data.projects[key];
+  const grant = data.peers[project?.peer]?.grant;
+  const sameGrant = () => data.peers[project?.peer]?.grant === grant;
   const stillSeen = () => projectResume(data, key)?.decisions.some(({ target: row }) => row?.kind === 'decision' && row.id === target.id &&
       row.version === target.version && row.discussion === target.discussion);
   if (!stillSeen()) throw new Error('决定已变化，请刷新项目');
@@ -282,10 +312,10 @@ export async function fetchDecisionEvidence(data, key, target) {
   try { result = await desktop(project.peer, 'decision-evidence', { projectId: project.id, scope: project.version,
     discussion: target.discussion, decisionId: target.id, version: target.version }); }
   catch (error) {
-    if (error.revoked) { forgetSharedProjects(data, project.peer); persist(data); }
+    if (error.revoked && sameGrant()) { forgetSharedProjects(data, project.peer); persist(data); }
     throw error;
   }
-  if (!data.projects[key]?.shared || data.projects[key]?.version !== project.version) throw new Error('项目授权已变化');
+  if (!sameGrant() || !data.projects[key]?.shared || data.projects[key]?.version !== project.version) throw new Error('项目授权已变化');
   if (!stillSeen()) throw new Error('决定已变化，请刷新项目');
   if (!['verified', 'unverified', 'missing', 'stale', 'conflict'].includes(result?.state) ||
       result.state === 'verified' && (typeof result.quote !== 'string' || result.quote.length > 3000 || typeof result.messageId !== 'string') ||
@@ -315,13 +345,13 @@ function catalog(data, peer, value) {
   for (const [key, p] of Object.entries(data.projects)) if (p.peer === peer) {
     p.shared = active.has(key);
     if (!p.shared) {
-      resumeByProject.delete(key);
+      dropProjectResume(data, key);
       if (data.agentTrees) delete data.agentTrees[key];
     }
   }
   for (const p of value.projects) {
     const key = desktopKey(peer, p.id);
-    if (data.projects[key]?.version !== p.version || !data.peers[peer].projectResume) resumeByProject.delete(key);
+    if (data.projects[key]?.version !== p.version || !data.peers[peer].projectResume) dropProjectResume(data, key);
     data.projects[key] = { ...p, key, peer, shared: true };
   }
   const ids = new Set(value.discussions.map((a) => a.id));
@@ -343,9 +373,9 @@ function catalog(data, peer, value) {
 
 function forgetSharedProjects(data, peer) {
   deliveriesByPeer.delete(peer);
+  dropPeerResumes(data, peer);
   for (const [key, p] of Object.entries(data.projects)) if (p.peer === peer) {
     p.shared = false;
-    resumeByProject.delete(key);
     if (data.agentTrees) delete data.agentTrees[key];
   }
 }
@@ -361,6 +391,7 @@ export async function refreshAgentTree(data, key) {
   }
   if (result?.allowed === false) {
     data.projects[key].shared = false;
+    dropProjectResume(data, key);
     if (data.agentTrees) delete data.agentTrees[key];
     persist(data);
     throw new Error('电脑已撤回这个项目的共享');

@@ -395,6 +395,9 @@ public final class ChatStore {
             if (json.getBytes(StandardCharsets.UTF_8).length > limit)
                 throw new IllegalArgumentException("记录超过 8 MiB 上限");
             JSONObject root = new JSONObject(json);
+            JSONArray resume = array(root, "projectResumeCache");
+            if (resume != null && (resume.length() > 8 || resume.toString().getBytes(StandardCharsets.UTF_8).length > 256 * 1024))
+                throw new IllegalArgumentException("项目接续缓存超过上限");
             Plan plan = new Plan();
             JSONObject peers = object(root, "peers");
             int position = 0;

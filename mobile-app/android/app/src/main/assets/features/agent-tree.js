@@ -62,7 +62,7 @@ export function agentScreen(data, ui) {
       resume ? '已核实 · ' + time(resume.at) : '尚未核实项目');
     const entry = (item) => {
       const target = item.target;
-      if (target?.kind === 'decision') return row(item.text, '核对原话', 'resume-decision-evidence', JSON.stringify(target));
+      if (target?.kind === 'decision' && online) return row(item.text, '核对原话', 'resume-decision-evidence', JSON.stringify(target));
       const d = target?.kind === 'discussion' && data.dialogs[desktopKey(p.peer, target.id)];
       if (d && d.project === p.key && d.listed !== false) return row(item.text, time(item.at), 'resume-discussion', target.id);
       if (target?.kind === 'work' && data.work[target.id]?.project === p.key) return row(item.text, time(item.at), 'agent-open-work', target.id);

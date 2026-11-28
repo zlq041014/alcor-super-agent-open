@@ -1,4 +1,4 @@
-import { readDelivery, desktopKey, fetchDecisionEvidence, refreshProjectResume, refreshPeerCatalog } from './model.js';
+import { readDelivery, desktopKey, dropPeerResumes, fetchDecisionEvidence, refreshProjectResume, refreshPeerCatalog } from './model.js';
 import { esc } from './icons.js';
 import { addMessage, agentDialog, attachProject, authorize, autoTitle, browse, chosen, copy, decisions, listDialogs, load, locate, log, namedProjects, native,
   newChat, newDiscussion, now, online, openWork, persist, readArtifact, recordDecision, refreshDialog, renameChat, respond, stateIssue,
@@ -1299,9 +1299,12 @@ function editDraft(w) {
 }
 
 function pairedView() {
+  const paired = new Set(ui.settings.peers.map(p => p.id));
+  for (const id of Object.keys(data.peers)) if (!paired.has(id)) dropPeerResumes(data, id);
   for (const p of ui.settings.peers) {
     const old = data.peers[p.id];
     if (old && old.grant !== p.grant) {
+      dropPeerResumes(data, p.id);
       for (const w of Object.values(data.work))
         if (w.peer === p.id && unsent(w)) log(w, 'failed', '电脑配对已变化，请核对后重新授权');
     }
@@ -2001,6 +2004,7 @@ app.addEventListener('click', (e) => {
       case 'clear-model': ui.settings = await native('model.clear'); show('devices'); break;
       case 'unpair':
         ui.settings = await native('unpair', { id: v });
+        dropPeerResumes(data, v);
         data.peers[v].online = false;
         data.peers[v].issue = '已从本机移除';
         for (const p of Object.values(data.projects)) if (p.peer === v) {

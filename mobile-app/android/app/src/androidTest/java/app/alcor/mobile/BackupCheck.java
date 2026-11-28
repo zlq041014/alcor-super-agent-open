@@ -61,6 +61,7 @@ final class BackupCheck {
             var remote = new JSONObject().put("id", remoteId).put("title", "电脑讨论").put("kind", "discussion")
                 .put("peer", peer).put("messages", new JSONArray().put(msg)).put("out", new JSONArray().put("fixture-current-authorization"));
             sourceChat.commit(new JSONObject().put("dialogs", new JSONObject().put(LIFE, dialog).put(remoteId, remote))
+                .put("projectResumeCache", new JSONArray().put(new JSONObject().put("text", "fixture-resume-never-export")))
                 .put("peers", new JSONObject().put(peer, new JSONObject().put("id", peer).put("token", "fixture-never-export")))
                 .put("projects", new JSONObject()).put("work", new JSONObject().put("task",
                     new JSONObject().put("id", "task").put("stage", "local").put("command", "fixture-current-authorization"))).toString());
@@ -81,7 +82,7 @@ final class BackupCheck {
                 var buffer = new byte[1024];
                 for (int n; (n = zip.read(buffer)) != -1;) manifest.write(buffer, 0, n);
                 json = manifest.toString(StandardCharsets.UTF_8.name());
-                require(!json.contains("fixture-never-export") && !json.contains("fixture-current-authorization"), "备份包含授权或凭据");
+                require(!json.contains("fixture-never-export") && !json.contains("fixture-current-authorization") && !json.contains("fixture-resume-never-export"), "备份包含授权或凭据");
             }
             var destination = new LocalBackup(target, to, targetChat, targetFiles);
             try (var preview = read(root, bytes.toByteArray())) {
@@ -102,6 +103,7 @@ final class BackupCheck {
                     merged.getInt("reminders") == 1 && merged.getInt("files") == 2, "恢复计数不一致");
                 var restored = new JSONObject(targetChat.stateJson());
                 require(restored.getJSONObject("peers").length() == 0 && restored.getJSONObject("work").length() == 0, "旧配对或派工复活");
+                require(!restored.has("projectResumeCache"), "备份恢复了设备级项目缓存");
                 JSONObject dest = restored.getJSONObject("dialogs").getJSONObject(LIFE);
                 require("未发草稿".equals(dest.getString("input")) && dest.getJSONArray("messages").length() == 1, "草稿或正文未还原");
                 var ref = dest.getJSONArray("wxFiles").getJSONObject(0).getString("ref");
