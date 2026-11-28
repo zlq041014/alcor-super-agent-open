@@ -203,6 +203,8 @@ export interface ProjectSource {
 }
 export interface Task extends Entity {
   backend?: ExecutorBackend; // Tasks created before 0.1.8 belong to Codex.
+  rosterId?: string;
+  rosterRecorded?: true;
   advance?: Advance;
   loopId?: string;
   graph?: true;
@@ -341,6 +343,14 @@ export interface Agent extends Entity {
   title: string;
   taskId?: string;
   activity?: string;
+}
+export interface RosterMember extends Entity {
+  name: string;
+  source: ExecutorBackend | "manual";
+  mode: "managed" | "record";
+  note: string;
+  state: "active" | "paused" | "retired";
+  revision: number;
 }
 export interface AgentLine extends Entity {
   ruleInputs?: RuleReference[];
@@ -504,6 +514,7 @@ export interface Snapshot {
   integrations: Integration[];
   messages: Message[];
   agents: Agent[];
+  roster: RosterMember[];
   memories: Memory[];
   approvals: Approval[];
   artifacts: Artifact[];
@@ -543,10 +554,12 @@ export interface LaunchCard {
     acceptance: string;
     discussion: { id: string; role: "user" | "assistant"; text: string }[];
   };
+  roster?: { id: string; name: string; revision: number };
 }
 export const TaskInput = z
   .object({
     projectId: z.string().min(1),
+    rosterId: z.string().uuid().optional(),
     goal: z.string().trim().min(1).max(24000),
     title: z.string().max(120).optional(),
     constraints: z.string().max(12000).default(""),
@@ -601,6 +614,11 @@ export function taskAdvance(
   return advance;
 }
 export const Request = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("roster.add"), name: z.string().trim().min(1).max(80),
+    source: z.enum(["codex", "dsh", "manual"]), mode: z.enum(["managed", "record"]), note: z.string().trim().max(2000), requestId: id }).strict(),
+  z.object({ op: z.literal("roster.update"), id, revision: z.number().int().positive(), name: z.string().trim().min(1).max(80),
+    note: z.string().trim().max(2000), state: z.enum(["active", "paused", "retired"]) }).strict(),
+  z.object({ op: z.literal("roster.link"), id, taskId: id, revision: z.number().int().positive() }).strict(),
   z.object({ op: z.literal("method.manage"), id, revision: z.number().int().positive(),
     action: z.enum(["enable", "pause", "delete", "recheck"]) }).strict(),
   z.object({ op: z.literal("preference.learning"), enabled: z.boolean() }).strict(),

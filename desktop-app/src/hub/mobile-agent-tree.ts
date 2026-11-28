@@ -1,5 +1,6 @@
-import type { Agent, Run, Task } from "../shared/contracts";
+import type { Agent, RosterMember, Run, Task } from "../shared/contracts";
 import { redact } from "./security";
+import { Roster } from "./roster";
 import { stamp, type Store } from "./store";
 
 const LIMIT = 250;
@@ -10,11 +11,16 @@ export function projectAgentTree(store: Store, projectId: string, workForTask: R
   ).all(projectId, LIMIT + 1);
   const agents = rows.slice(0, LIMIT).map((row) => JSON.parse(String(row.data)) as Agent);
   const known = new Set(agents.map((a) => a.id));
+  const members = new Map<string, RosterMember | undefined>();
+  const roster = new Roster(store);
   return {
     at: stamp(), truncated: rows.length > LIMIT,
     nodes: agents.map((agent) => {
       const raw = agent.taskId ? store.get<Task>("task", agent.taskId) : undefined;
       const task = raw?.projectId === projectId ? raw : undefined;
+      const rosterId = task ? roster.forTask(task) : undefined;
+      if (rosterId && !members.has(rosterId)) members.set(rosterId, store.get<RosterMember>("agent-roster", rosterId));
+      const member = rosterId ? members.get(rosterId) : undefined;
       const recent = task?.runId ? store.get<Run>("run", task.runId) : undefined;
       const run = task && recent?.taskId === task.id && recent.revision === task.revision ? recent : undefined;
       const bound = store.get<{ projectId: string; threadId: string; nativeSource?: string }>("agent-source", agent.id);
@@ -34,6 +40,7 @@ export function projectAgentTree(store: Store, projectId: string, workForTask: R
           task?.state ?? (agent.kind === "discussion" ? "discussion" : "unknown"),
         session, discussionId: agent.kind === "discussion" ? agent.id : undefined,
         workId: task ? workForTask.get(task.id) : undefined,
+        ...(member ? { roster: { id: member.id, name: member.name, source: member.source, recorded: !task?.rosterId } } : {}),
       };
     }),
   };

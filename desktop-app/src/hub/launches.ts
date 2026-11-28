@@ -64,10 +64,13 @@ export class Launches {
     );
     const cfg = this.h.settings(),
       profile = defaultProfile(cfg);
+    const member = data.kind === "executor" && data.value.rosterId ? this.h.rosterExecutor(data.value.rosterId) : undefined;
+    const backend = member?.source ?? cfg.executorBackend;
     const card: LaunchCard = {
       id,
       kind: data.kind,
-      ...(data.kind === "executor" ? { backend: cfg.executorBackend } : {}),
+      ...(data.kind === "executor" ? { backend } : {}),
+      ...(member ? { roster: { id: member.id, name: member.name, revision: member.revision } } : {}),
       parentAgentId: parent,
       projectId: p.id,
       title:
@@ -85,14 +88,14 @@ export class Launches {
           ? "discussion"
           : data.value.mode === "read"
             ? "read"
-            : cfg.executorBackend === "dsh" ||
+            : backend === "dsh" ||
                 data.value.access === "project" ||
                 data.value.isolate
               ? "project"
               : "codex",
       profile,
       approval:
-        data.kind === "executor" && cfg.executorBackend === "dsh"
+        data.kind === "executor" && backend === "dsh"
           ? "never"
           : cfg.toolApproval,
       createdAt: stamp(),
@@ -180,6 +183,8 @@ export class Launches {
         this.checkDiscussionHandoff(r.data.delegation);
     }
     const backend = r.card.backend ?? "codex";
+    if (r.card.roster && this.h.rosterExecutor(r.card.roster.id, r.card.roster.revision).source !== backend)
+      throw new Error("Agent 执行来源已变化，请重新准备工作");
     if (r.data.kind === "executor") this.h.checkProfile(profile, backend);
     if (
       r.card.kind === "executor" &&

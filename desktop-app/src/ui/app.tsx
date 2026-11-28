@@ -73,6 +73,7 @@ import {
   type ExecutorBackend,
 } from "../shared/contracts";
 import { AgentTree, AgentWorkspace, stateOf } from "./agents";
+import { AgentRoster } from "./agent-roster";
 import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
 import { MobileDelivery } from "./mobile-delivery";
 import { WorkRecord, messageWork } from "./work-record";
@@ -571,6 +572,7 @@ function App() {
   const title: Record<string, string> = {
     chat: "与星引对话",
     work: "所有工作",
+    roster: "Agent 名册",
     projects: "项目空间",
     sessions: "Codex 会话",
     memory: "明确规则",
@@ -581,6 +583,7 @@ function App() {
     ["chat", "对话", MessageSquare],
     ["work", "工作", Layers3],
     ["projects", "项目", FolderOpen],
+    ["roster", "Agent 名册", Terminal],
     ["sessions", "原生会话", Terminal],
     ["memory", "规则记忆", BookOpen],
     ["history", "历史搜索", History],
@@ -1307,6 +1310,8 @@ function App() {
                 </div>
               </>
             )}
+            {view === "roster" && <AgentRoster snapshot={s} request={api.request} refresh={refresh}
+              openTask={t => void selectTask(t)} showLaunch={showRouted} />}
             {view === "work" && (
               <div className="page">
                 <PageTitle
@@ -1962,6 +1967,7 @@ function App() {
                   ?.title}{" "}
             委派{pendingLaunch.kind === "discussion" ? "讨论" : "执行"} Agent
           </p>
+          {pendingLaunch.roster && <p className="field-help">承办 Agent：{pendingLaunch.roster.name}</p>}
           <h3>{pendingLaunch.title}</h3>
           <p className="launch-goal">{pendingLaunch.detail}</p>
           {pendingLaunch.handoff && <>

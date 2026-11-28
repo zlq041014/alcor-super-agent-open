@@ -61,6 +61,7 @@ import { Store, entity, stamp, LEDGER_VERSION } from "./store";
 import { backupFiles, readBackupManifest } from "./backup-files";
 import { Vault, hash, redact, within, fileInfo } from "./security";
 import { resultArtifacts, resultEvidence } from "../shared/result-evidence";
+import { Roster } from "./roster";
 import { Brain, ModelOutputError } from "./brain";
 import { Roles } from "./roles";
 import { Misses, type MissSample } from "./misses";
@@ -193,6 +194,13 @@ export class Hub extends EventEmitter {
   private schedulePass = false;
   desk = new AgentDesk(this);
   launches = new Launches(this);
+  get roster() { return new Roster(this.store); }
+  rosterExecutor(id: string, revision?: number) {
+    const member = this.roster.dispatch(id, revision);
+    const ready = member.source === "codex" ? this.status.status === "就绪" : this.dsh.status.status === "ACP 就绪";
+    if (!ready) throw new Error("执行端还未就绪，请先在设置中检测连接");
+    return member;
+  }
   loop = new LoopEngine(this);
   graph = new GraphWork(this);
   private dispatching = new Set<Promise<void>>();
@@ -464,7 +472,7 @@ export class Hub extends EventEmitter {
       projects: this.store.all("project"),
       catalog: this.projectCatalog(),
       projectRoots: projectRoots(this.store),
-      tasks: this.store.all("task"),
+      tasks: this.roster.tasks(this.store.all("task")),
       taskWakes: this.wakes.list(),
       preferenceLearning: preferenceLearning(this.store),
       replyPreferences: this.preferences.list(),
@@ -477,6 +485,7 @@ export class Hub extends EventEmitter {
         .filter((m) => m.audience !== "executor" && m.status !== "native-owner")
         .slice(-250),
       agents: this.store.all("agent"),
+      roster: this.roster.list(),
       memories: this.store.all<Memory>("memory").filter((m) => !m.deleted),
       approvals: this.store.all("approval"),
       artifacts: this.store.all("artifact"),
@@ -695,6 +704,19 @@ export class Hub extends EventEmitter {
         return this.launches.cancel(r.id);
       case "agent.launch.confirm":
         return this.launches.confirm(r.id, r.profile);
+      case "roster.add":
+        return this.desk.once(r.requestId, r, () => this.roster.add({ name: r.name, note: r.note, mode: r.mode, source: r.source }));
+      case "roster.update": {
+        const member = this.roster.update(r.id, r.revision, r);
+        this.changed();
+        return member;
+      }
+      case "roster.link": {
+        const task = this.getTask(r.taskId);
+        assertRevision(task, r.revision);
+        if (this.roster.link(r.id, task)) this.changed();
+        return true;
+      }
       case "agent.configure": {
         if (r.agentId === CHIEF) {
           const cfg = this.settings();
@@ -1877,7 +1899,9 @@ export class Hub extends EventEmitter {
         openWorker,
       );
     }
-    if (taskAdvance(value, cfg) === "single")
+    const advance = taskAdvance(value, cfg);
+    if (value.rosterId && advance !== "single") throw new Error("名册身份仅用于逐项确认的单次工作");
+    if (advance === "single")
       return this.launches.propose(requestId, {
         kind: "executor",
         value,
@@ -1937,6 +1961,8 @@ export class Hub extends EventEmitter {
     }
     for (const id of value.dependencies) this.getTask(id);
     this.checkProfile(profile, backend);
+    if (value.rosterId && (loop || this.rosterExecutor(value.rosterId).source !== backend))
+      throw new Error("登记身份与本次执行端不匹配");
     for (const id of value.attachments) {
       const input = this.store.get<Artifact>("artifact", id);
       if (!input) throw new Error("附件不存在");

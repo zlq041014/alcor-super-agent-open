@@ -297,8 +297,12 @@ export async function refreshAgentTree(data, key) {
     const session = s && typeof s.threadId === 'string' && s.threadId &&
       (s.backend === 'codex' && !s.source || s.backend === 'dsh' && typeof s.source === 'string' && s.source)
       ? { backend: s.backend, threadId: s.threadId, source: s.source } : undefined;
+    const member = n.roster;
+    const roster = member && typeof member.id === 'string' && typeof member.name === 'string' &&
+      ['codex', 'dsh', 'manual'].includes(member.source)
+      ? { id: member.id, name: member.name, source: member.source, recorded: member.recorded === true } : undefined;
     return { id: n.id, title: n.title, parentId: n.parentId, kind: n.kind, state: n.state, at: n.at,
-      backend: n.backend, model: n.model, session, discussionId: n.discussionId, workId: n.workId };
+      backend: n.backend, model: n.model, session, discussionId: n.discussionId, workId: n.workId, roster };
   });
   (data.agentTrees ??= {})[key] = { at: result.at, truncated: result.truncated === true, nodes };
   persist(data);

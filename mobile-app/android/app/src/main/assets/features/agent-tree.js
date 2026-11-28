@@ -78,6 +78,7 @@ export function agentDetails(data, key, node) {
   const related = node.discussionId ? node : parent?.discussionId ? parent : null;
   const work = data.work[node.workId];
   return { title: node.title, body: `<p class="lead">${esc([labels[node.state] ?? '未知', backend[node.backend], node.model, time(node.at)].filter(Boolean).join(' · '))}</p>
+    ${node.roster ? `<p class="foot-note">${node.roster.recorded ? '手动关联' : '承办 Agent'}：${esc(node.roster.name)}</p>` : ''}
     <div class="row-btns">${related ? btn(related === node ? '查看讨论' : '上级讨论', 'agent-open-chat', related.id) : ''}
     ${node.session ? btn('原会话', 'agent-open-session', node.id) : ''}${work?.project === key ? btn('查看回执', 'agent-open-work', work.id) : ''}</div>
     ${node.session ? btn('设为交接目标', 'agent-target', node.id, 'primary') : '<p class="foot-note">没有可接续的原会话。</p>'}` };
