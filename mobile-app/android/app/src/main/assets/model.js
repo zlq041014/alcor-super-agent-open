@@ -20,7 +20,11 @@ window.alcorResult = (id, kind, value) => {
   if (kind === 'delta') { call.delta?.(value); return; }
   pending.delete(id);
   if (kind === 'done') call.resolve(value);
-  else call.reject(new Error(value));
+  else if (typeof value === 'object' && value?.code) {
+    const error = new Error(value.message);
+    error.inputIssue = { code: value.code, ref: value.ref };
+    call.reject(error);
+  } else call.reject(new Error(value));
 };
 export function native(op, value = {}, delta) {
   const id = uid();

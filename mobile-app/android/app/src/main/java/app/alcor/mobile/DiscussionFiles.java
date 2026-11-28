@@ -155,6 +155,18 @@ final class DiscussionFiles {
         return new File(dir, ref.substring(33));
     }
 
+    private File checkedInput(String dialog, String ref) throws Exception {
+        try {
+            File current = file(dialog, ref);
+            if (current.isFile()) return current;
+        } catch (java.nio.file.NoSuchFileException missingManifest) {
+            var issue = new InputIssue("input-missing", "本轮所选附件已移除，请重新选择", ref);
+            issue.initCause(missingManifest);
+            throw issue;
+        }
+        throw new InputIssue("input-missing", "本轮所选附件已移除，请重新选择", ref);
+    }
+
     File backupFile(String owner, String ref) throws Exception { return file(owner, ref); }
 
     JSONObject restoreBackupFile(String batch, String owner, File source, String name, String mime) throws Exception {
@@ -286,9 +298,9 @@ final class DiscussionFiles {
 
         void check() throws Exception {
             for (var origin : origins) {
-                File current = file(dialog, origin.ref());
-                if (!current.isFile() || current.length() != origin.size() || current.lastModified() != origin.modified())
-                    throw new IllegalStateException("本轮所选附件已移除或变化，请重新选择");
+                File current = checkedInput(dialog, origin.ref());
+                if (current.length() != origin.size() || current.lastModified() != origin.modified())
+                    throw new InputIssue("input-changed", "本轮所选附件已变化，请重新选择", origin.ref());
             }
         }
 
@@ -321,8 +333,7 @@ final class DiscussionFiles {
         JSONArray parts = new JSONArray().put(new JSONObject().put("type", "text").put("text", question));
         for (int i = 0; i < refs.length(); i++) {
             String ref = refs.getString(i);
-            File file = file(dialog, ref);
-            if (!file.isFile()) throw new IllegalStateException("本轮所选附件已移除，请重新选择");
+            File file = checkedInput(dialog, ref);
             origins.add(new Origin(ref, file.length(), file.lastModified()));
             String name = manifest(file.getParentFile()).getJSONArray("files").getJSONObject(Integer.parseInt(file.getName())).getString("name");
             String ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
@@ -333,13 +344,13 @@ final class DiscussionFiles {
                 ArchiveInput pack = ArchiveInput.inspect(file, true);
                 parts.put(new JSONObject().put("type", "text").put("text", pack.text));
                 if (pack.image != null) {
-                    if (!visual && official) throw new IllegalArgumentException("所选模型不支持 ZIP 中的图片，请切换 V4.1 Flash");
+                    if (!visual && official) throw new InputIssue("input-format", "所选模型不支持 ZIP 中的图片，请切换 V4.1 Flash", ref);
                     parts.put(new JSONObject().put("type", "text").put("text", "归档图片：" + pack.imageName));
                     parts.put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject().put("url",
                         "data:" + pack.imageMime + ";base64," + Base64.encodeToString(pack.image, Base64.NO_WRAP))));
                 }
             } else if (ext.matches("png|jpg|jpeg|gif|webp") && official && !visual) {
-                throw new IllegalArgumentException("所选模型不支持图片，请切换 V4.1 Flash");
+                throw new InputIssue("input-format", "所选模型不支持图片，请切换 V4.1 Flash", ref);
             } else if (ext.matches("png|jpg|jpeg|gif|webp") && official && file.length() > 1024 * 1024) {
                 var slot = new JSONObject().put("type", "file");
                 parts.put(slot);
@@ -349,15 +360,22 @@ final class DiscussionFiles {
                 String image = "data:image/" + mime + ";base64," + Base64.encodeToString(Files.readAllBytes(file.toPath()), Base64.NO_WRAP);
                 parts.put(new JSONObject().put("type", "image_url").put("image_url", new JSONObject().put("url", image)));
             } else if (ext.matches("txt|md|csv|json|log")) {
-                if (file.length() > 128 * 1024) throw new IllegalArgumentException("文本附件超过本轮 128 KiB 上限，请先缩短");
-                String text = StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(Files.readAllBytes(file.toPath()))).toString();
+                if (file.length() > 128 * 1024) throw new InputIssue("input-size", "文本附件超过本轮 128 KiB 上限，请先缩短", ref);
+                String text;
+                try {
+                    text = StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(Files.readAllBytes(file.toPath()))).toString();
+                } catch (java.nio.charset.CharacterCodingException unreadable) {
+                    var issue = new InputIssue("input-encoding", "无法读取此文本，请另存为 UTF-8 后重新选择", ref);
+                    issue.initCause(unreadable);
+                    throw issue;
+                }
                 parts.put(new JSONObject().put("type", "text").put("text", text));
             } else if (ext.matches("pdf|docx?|pptx?|xlsx?")) {
-                if (!official || !visual) throw new IllegalArgumentException("文档解析需使用 DeepSeek 官方接口和 V4.1 Flash");
+                if (!official || !visual) throw new InputIssue("input-format", "文档解析需使用 DeepSeek 官方接口和 V4.1 Flash", ref);
                 var slot = new JSONObject().put("type", "file");
                 parts.put(slot);
                 uploads.add(new Upload(slot, file, name, ext.startsWith("xls") ? "user_data" : "text_recognition"));
-            } else throw new IllegalArgumentException("此格式已保存，但暂不支持交给模型阅读");
+            } else throw new InputIssue("input-format", "此格式已保存，但暂不支持交给模型阅读", ref);
         }
         return new PreparedFiles(config, dialog, refs, question, index, parts, origins, uploads);
     }

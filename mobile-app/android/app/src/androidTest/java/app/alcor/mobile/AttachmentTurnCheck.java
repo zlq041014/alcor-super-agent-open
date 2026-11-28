@@ -33,42 +33,69 @@ final class AttachmentTurnCheck {
                 return "fixture-file-id";
             };
             var first = prompt();
-            turn.attach(materials, OWNER, refs, first, () -> turns.require(turnId), stub);
+            var budgetTurn = turns.require(turns.begin(config, ""));
+            var packed = prompt();
+            try {
+                budgetTurn.attach(materials, OWNER, refs, packed, () ->
+                    ContextBudget.packet(new ContextBudget.Limits(1024, 0, 0, true), packed, null, 1.0, "short"),
+                    () -> {}, stub);
+                throw new AssertionError("未拦住放不下的附件");
+            } catch (InputIssue expected) {
+                JSONObject status = (JSONObject) MobileService.bridgeIssue(expected);
+                if (!"input-budget".equals(status.getString("code")) || status.has("ref") || uploads.get() != 0)
+                    throw new AssertionError("预算缺口猜测单份附件或已上传");
+            }
+            var custom = new JSONObject(config.toString()).put("endpoint", "https://fixture.invalid/chat/completions");
+            try {
+                materials.prepareFiles(custom, OWNER, refs, prompt());
+                throw new AssertionError("不支持的附件未被拦截");
+            } catch (InputIssue expected) {
+                JSONObject status = (JSONObject) MobileService.bridgeIssue(expected);
+                if (!"input-format".equals(status.getString("code")) || !ref.equals(status.getString("ref")))
+                    throw new AssertionError("没有标明不支持的附件引用");
+            }
+            turn.attach(materials, OWNER, refs, first, () -> {
+                if (uploads.get() != 0 || !first.getJSONObject(1).getJSONArray("content").getJSONObject(2).getString("type").equals("file"))
+                    throw new AssertionError("没有在上传前核对带附件的整包");
+            }, () -> turns.require(turnId), stub);
             var follow = prompt().put(new JSONObject().put("role", "assistant").put("content", "正在核对汇率"))
                 .put(new JSONObject().put("role", "tool").put("content", "合成汇率：2"));
-            turn.attach(materials, OWNER, refs, follow, () -> turns.require(turnId), stub);
+            turn.attach(materials, OWNER, refs, follow, () -> {}, () -> turns.require(turnId), stub);
             if (uploads.get() != 1 || !first.getJSONObject(1).toString().equals(follow.getJSONObject(1).toString()) ||
                     !"合成汇率：2".equals(follow.getJSONObject(3).getString("content")))
                 throw new AssertionError("续包漏材料、重复上传或改写工具回执");
             try { turn.checkSelection(false); throw new AssertionError("允许丢弃选材的续包"); }
             catch (IllegalStateException expected) { if (!expected.getMessage().contains("缺少所选")) throw expected; }
             try {
-                turn.attach(materials, OWNER, new JSONArray().put("different"), prompt(), () -> {}, stub);
+                turn.attach(materials, OWNER, new JSONArray().put("different"), prompt(), () -> {}, () -> {}, stub);
                 throw new AssertionError("续包允许替换附件");
             } catch (IllegalStateException expected) { if (!expected.getMessage().contains("更换所选")) throw expected; }
             var changed = prompt();
             changed.getJSONObject(1).put("content", "另一条问题");
             try {
-                turn.attach(materials, OWNER, refs, changed, () -> {}, stub);
+                turn.attach(materials, OWNER, refs, changed, () -> {}, () -> {}, stub);
                 throw new AssertionError("续包允许替换原问题");
             } catch (IllegalStateException expected) { if (!expected.getMessage().contains("原问题已变化")) throw expected; }
             var uncertain = turns.require(turns.begin(config, ""));
             var failed = new java.io.IOException("上传回执中断");
             try {
-                uncertain.attach(materials, OWNER, refs, prompt(), () -> {}, (model, file, name, purpose) -> { throw failed; });
+                uncertain.attach(materials, OWNER, refs, prompt(), () -> {}, () -> {}, (model, file, name, purpose) -> { throw failed; });
                 throw new AssertionError("未报告上传中断");
             } catch (java.io.IOException expected) { if (expected != failed) throw expected; }
             try {
-                uncertain.attach(materials, OWNER, refs, prompt(), () -> {}, stub);
+                uncertain.attach(materials, OWNER, refs, prompt(), () -> {}, () -> {}, stub);
                 throw new AssertionError("本轮自动重传了未确认的附件");
             } catch (IllegalStateException expected) { if (!expected.getMessage().contains("上传未确认")) throw expected; }
             materials.remove(OWNER, ref);
             try { turn.checkAttachments(); throw new AssertionError("移除附件后仍可发送"); }
-            catch (IllegalStateException expected) { if (!expected.getMessage().contains("附件已移除")) throw expected; }
+            catch (InputIssue expected) {
+                JSONObject status = (JSONObject) MobileService.bridgeIssue(expected);
+                if (!"input-missing".equals(status.getString("code")) || !ref.equals(status.getString("ref"))) throw expected;
+            }
             var next = turns.require(turns.begin(new JSONObject(config.toString()).put("endpoint", "https://fixture.invalid/chat/completions"), ""));
             next.checkSelection(false);
             if (uploads.get() != 1) throw new AssertionError("新来源复用了原轮附件");
-            return "one upload, same user anchor and tool receipt, removed and new-route checks";
+            return "typed budget/format/missing input, zero upload on budget, one upload across tool packets, unchanged user anchor, no reuse on a new route";
         } finally {
             Files.deleteIfExists(source.toPath());
             materials.discard(batch);

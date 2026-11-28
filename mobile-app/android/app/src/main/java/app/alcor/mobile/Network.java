@@ -19,6 +19,7 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 final class Network {
@@ -84,6 +85,29 @@ final class Network {
         c.setReadTimeout(30000);
         c.setRequestProperty("Authorization", "Bearer " + token);
         return c;
+    }
+
+    static ContextBudget.Limits contextLimits(JSONObject config) throws Exception {
+        String endpoint = config.getString("endpoint");
+        String suffix = "/chat/completions";
+        if (!endpoint.endsWith(suffix)) return ContextBudget.limits(config, new JSONObject());
+        var conn = connect(endpoint.substring(0, endpoint.length() - suffix.length()) + "/models", null,
+            "Authorization", "Bearer " + config.getString("key"), null, 1800);
+        conn.setConnectTimeout(1800);
+        try {
+            if (conn.getResponseCode() != 200) return ContextBudget.limits(config, new JSONObject());
+            try (var input = conn.getInputStream()) {
+                var rows = read(input, 512 * 1024).optJSONArray("data");
+                for (int i = 0; rows != null && i < rows.length(); i++) {
+                    JSONObject row = rows.optJSONObject(i);
+                    if (row != null && config.getString("model").equals(row.optString("id"))) return ContextBudget.limits(config, row);
+                }
+            }
+        } catch (IOException | JSONException malformed) {
+            // Models is a supplementary, read-only endpoint. An unavailable declaration means unknown capacity.
+            return ContextBudget.limits(config, new JSONObject());
+        } finally { conn.disconnect(); }
+        return ContextBudget.limits(config, new JSONObject());
     }
 
     static JSONObject desktop(JSONObject peer, String route, JSONObject body) throws Exception {

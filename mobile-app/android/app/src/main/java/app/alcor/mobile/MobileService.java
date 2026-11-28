@@ -153,14 +153,21 @@ public final class MobileService {
                 JSONObject config = turn == null ? modelConfig() : turn.model();
                 JSONArray messages = input.getJSONArray("messages");
                 if (turn != null) turn.checkSelection(input.has("files"));
+                JSONArray tools = input.optJSONArray("tools");
                 if (input.has("files")) {
                     if (turn == null) throw new IllegalArgumentException("附件需要在已绑定的模型回合发送");
-                    turn.attach(materials, input.getString("dialog"), input.getJSONArray("files"), messages,
-                        () -> modelTurns.require(id), materials::uploadDocument);
+                    var limits = modelTurns.limits(id);
+                    double ratio = modelTurns.ratio(turn);
+                    turn.attach(materials, input.getString("dialog"), input.getJSONArray("files"), messages, () -> {
+                        modelTurns.require(id);
+                        ContextBudget.packet(limits, messages, tools, ratio, "short");
+                    }, () -> modelTurns.require(id), materials::uploadDocument);
+                    var packet = ContextBudget.packet(limits, messages, tools, ratio, "short");
+                    if (packet.enforceOutput()) config = new JSONObject(config.toString()).put("max_tokens", packet.outputTokens());
                     turn.checkAttachments();
                     modelTurns.require(id);
                 }
-                return Network.chat(config, messages, input.optBoolean("title"), input.optJSONArray("tools"), delta::accept);
+                return Network.chat(config, messages, input.optBoolean("title"), tools, delta::accept);
             }
             case "search": {
                 if (input.has("turn")) {
@@ -246,6 +253,10 @@ public final class MobileService {
 
     private static void verifyKey(String key) {
         if (!key.matches("[\\x21-\\x7e]{1,4000}")) throw new IllegalArgumentException("请填写有效的 API Key");
+    }
+
+    public static Object bridgeIssue(Exception error) {
+        return error instanceof InputIssue input ? input.bridgeValue() : issue(error);
     }
 
     public static String issue(Exception error) {

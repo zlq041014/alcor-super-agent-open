@@ -264,7 +264,10 @@ export function view(data, ui) {
         ? icon('copy', '复制', 'copy-message', m.id) + icon('ext', '导出回复', 'export-message', m.id) : ''}</div>
       ${!user && !m.pending ? memoryUsed(m) + usageLine(m) : ''}
       ${!user && !m.pending && m.contextNote ? '<div class="usage warn">' + esc(m.contextNote) + '</div>' : ''}
-      ${issue(m.error)}${m.error && m.input && !m.noteAction && !m.reminderAction && !m.memoryAction ? button('重试', 'retry', m.id, 'text') : ''}
+      ${m.materialGap ? issue('问题未发给模型 · ' + (m.materialGap.name ? m.materialGap.name + '：' : '') +
+        (m.materialGap.code === 'input-budget' && m.wxRefs?.length > 1 ? '本轮材料放不下。先看哪份附件？' : m.error))
+        + button(m.wxRefs?.length ? '调整材料' : '调整问题', 'adjust-input', m.id, 'text') : issue(m.error)}
+      ${!m.materialGap && m.error && m.input && !m.noteAction && !m.reminderAction && !m.memoryAction ? button('重试', 'retry', m.id, 'text') : ''}
       ${noteAction(m)}${reminderCard(m)}${memoryReceipt(m)}</div>`;
   };
   const visible = transcript(d).filter((m) => !covered.has(m.id)).map((m) => m.turn && !m.origin ? { ...m, origin: kind[d.kind][0] + ' 原会话' } : m);

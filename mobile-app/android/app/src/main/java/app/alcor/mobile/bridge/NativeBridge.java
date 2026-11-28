@@ -96,7 +96,7 @@ public final class NativeBridge {
                             host.event("notes.changed", new org.json.JSONObject());
                     }
                 } catch (Exception error) {
-                    host.result(id, "error", MobileService.issue(error));
+                    host.result(id, "error", MobileService.bridgeIssue(error));
                 }
             });
         } catch (RejectedExecutionException error) {

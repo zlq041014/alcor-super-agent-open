@@ -1127,12 +1127,19 @@ async function ask(d, value, search = false, files = []) {
       response.text = visible;
     } catch (error) {
       response.text = chunks;
+      if (first && !retried && !chunks && response.input && error.inputIssue) {
+        const { code, ref } = error.inputIssue;
+        const name = files.includes(ref) && d.wxFiles.find(f => f.ref === ref)?.name;
+        response.materialGap = { code, ...(name && { name }) };
+      }
       response.error = chunks ? '答复未完成：' + error.message : error.message;
     }
     response.toolCost = toolRuns.reduce((sum, run) => sum + (run.cost ?? 0), 0);
-    if (files.length) for (const f of d.wxFiles ?? []) if (files.includes(f.ref)) f.selected = false;
-    delete response.input;
-    out(d, response);
+    if (!response.materialGap) {
+      if (files.length) for (const f of d.wxFiles ?? []) if (files.includes(f.ref)) f.selected = false;
+      delete response.input;
+    }
+    if (!response.materialGap) out(d, response);
     if (drafting) {
       const items = draftOptions(visible);
       if (items.length >= 2) addMessage(d, 'system', '', { kind: 'drafts', items });
@@ -1975,6 +1982,14 @@ app.addEventListener('click', (e) => {
           throw new Error('这份材料在尚未派工的授权中，请先撤销交接');
         await native('material.remove', { dialog: d.id, ref: v }); d.wxFiles = d.wxFiles.filter(f => f.ref !== v);
         save(); show('received'); break;
+      case 'adjust-input': {
+        const m = d.messages.find(x => x.id === v);
+        if (!m?.materialGap || !m.input || ui.busyDialogs.has(d.id)) break;
+        if (!d.input.trim()) { d.input = m.input; save(); }
+        if (m.wxRefs?.length && d.wxFiles?.length) show('received');
+        else render({ bottom: true, focus: 'composer' });
+        break;
+      }
       case 'retry': {
         const m = d.messages.find((x) => x.id === v);
         if (!ui.online) throw new Error('手机没有网络，请联网后重试。');
